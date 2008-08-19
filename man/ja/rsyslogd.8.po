@@ -1,0 +1,567 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: rsyslogd.8 HEAD\n"
+"POT-Creation-Date: 2008-08-17 17:46+0900\n"
+"PO-Revision-Date: 2008-08-17 18:03+0900\n"
+"Last-Translator: Satoru SATOH <satoru.satoh@gmail.com>\n"
+"Language-Team: Japanese <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../C/rsyslogd.8.xml:8(date) ../C/rsyslogd.8.xml:13(refmiscinfo) 
+msgid "29 July 2008"
+msgstr "29 July 2008"
+
+#: ../C/rsyslogd.8.xml:11(refentrytitle) 
+msgid "RSYSLOGD"
+msgstr "RSYSLOGD"
+
+#: ../C/rsyslogd.8.xml:12(manvolnum) 
+msgid "8"
+msgstr "8"
+
+#: ../C/rsyslogd.8.xml:14(refmiscinfo) 
+msgid "Version 3.21.1"
+msgstr "Version 3.21.1"
+
+#: ../C/rsyslogd.8.xml:15(refmiscinfo) 
+msgid "Linux System Administration"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:18(refname) ../C/rsyslogd.8.xml:24(command) 
+msgid "rsyslogd"
+msgstr "rsyslogd"
+
+#: ../C/rsyslogd.8.xml:19(refpurpose) 
+msgid "reliable and extended syslogd"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:25(arg) ../C/rsyslogd.8.xml:154(option) 
+msgid "-4"
+msgstr "-4"
+
+#: ../C/rsyslogd.8.xml:26(arg) ../C/rsyslogd.8.xml:167(option) 
+msgid "-6"
+msgstr "-6"
+
+#: ../C/rsyslogd.8.xml:27(arg) ../C/rsyslogd.8.xml:140(option) 
+msgid "-A"
+msgstr "-A"
+
+#: ../C/rsyslogd.8.xml:28(arg) ../C/rsyslogd.8.xml:208(option) 
+msgid "-d"
+msgstr "-d"
+
+#: ../C/rsyslogd.8.xml:30(arg) ../C/rsyslogd.8.xml:220(option) 
+msgid "-f"
+msgstr "-f"
+
+#: ../C/rsyslogd.8.xml:32(replaceable) 
+msgid "config"
+msgstr "config"
+
+#: ../C/rsyslogd.8.xml:35(replaceable) ../C/rsyslogd.8.xml:45(replaceable) 
+msgid "file"
+msgstr "file"
+
+#: ../C/rsyslogd.8.xml:40(arg) ../C/rsyslogd.8.xml:231(option) 
+msgid "-i"
+msgstr "-i"
+
+#: ../C/rsyslogd.8.xml:42(replaceable) 
+msgid "pid"
+msgstr "pid"
+
+#: ../C/rsyslogd.8.xml:49(arg) ../C/rsyslogd.8.xml:242(option) 
+msgid "-l"
+msgstr "-l"
+
+#: ../C/rsyslogd.8.xml:51(replaceable) ../C/rsyslogd.8.xml:243(emphasis) 
+msgid "hostlist"
+msgstr "hostlist"
+
+#: ../C/rsyslogd.8.xml:54(arg) ../C/rsyslogd.8.xml:253(option) 
+msgid "-n"
+msgstr "-n"
+
+#: ../C/rsyslogd.8.xml:56(arg) 
+msgid "-N"
+msgstr "-N"
+
+#: ../C/rsyslogd.8.xml:58(replaceable) 
+msgid "level"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:62(arg) ../C/rsyslogd.8.xml:282(option) 
+msgid "-q"
+msgstr "-q"
+
+#: ../C/rsyslogd.8.xml:63(arg) ../C/rsyslogd.8.xml:294(option) 
+msgid "-Q"
+msgstr "-Q"
+
+#: ../C/rsyslogd.8.xml:65(arg) ../C/rsyslogd.8.xml:303(option) 
+msgid "-s"
+msgstr "-s"
+
+#: ../C/rsyslogd.8.xml:67(replaceable) ../C/rsyslogd.8.xml:304(emphasis) 
+msgid "domainlist"
+msgstr "domainlist"
+
+#: ../C/rsyslogd.8.xml:71(arg) ../C/rsyslogd.8.xml:320(option) 
+msgid "-u"
+msgstr "-u"
+
+#: ../C/rsyslogd.8.xml:73(replaceable) ../C/rsyslogd.8.xml:321(emphasis) 
+msgid "userlevel"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:76(arg) ../C/rsyslogd.8.xml:338(option) 
+msgid "-v"
+msgstr "-v"
+
+#: ../C/rsyslogd.8.xml:77(arg) ../C/rsyslogd.8.xml:346(option) 
+msgid "-w"
+msgstr "-w"
+
+#: ../C/rsyslogd.8.xml:78(arg) ../C/rsyslogd.8.xml:355(option) 
+msgid "-x"
+msgstr "-x"
+
+#: ../C/rsyslogd.8.xml:83(title) 
+msgid "DESCRIPTION"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:84(para) 
+msgid "<emphasis remap=\"B\">Rsyslogd</emphasis> is a system utility providing support for message logging. Support of both internet and unix domain sockets enables this utility to support both local and remote logging."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:89(para) 
+msgid "<emphasis remap=\"B\">Note that this version of rsyslog ships with extensive documentation in html format.</emphasis> This is provided in the ./doc subdirectory and probably in a separate package if you installed rsyslog via a packaging system. To use rsyslog's advanced features, you <emphasis remap=\"B\">need</emphasis> to look at the html documentation, because the man pages only cover basic aspects of operation. <emphasis remap=\"B\">For details and configuration examples, see the rsyslog.conf (5)</emphasis><emphasis remap=\"B\">man page and the online documentation at <ulink url=\"http://www.rsyslog.com/doc\">http://www.rsyslog.com/doc</ulink></emphasis>"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:98(para) 
+msgid "<citerefentry><refentrytitle>Rsyslogd</refentrytitle><manvolnum>8</manvolnum></citerefentry> is derived from the sysklogd package which in turn is derived from the stock BSD sources."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:101(para) 
+msgid "<emphasis remap=\"B\">Rsyslogd</emphasis> provides a kind of logging that many modern programs use. Every logged message contains at least a time and a hostname field, normally a program name field, too, but that depends on how trusty the logging program is. The rsyslog package supports free definition of output formats via templates. It also supports precise timestamps and writing directly to databases. If the database option is used, tools like phpLogCon can be used to view the log data."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:109(para) 
+msgid "While the <command>rsyslogd</command> sources have been heavily modified a couple of notes are in order. First of all there has been a systematic attempt to ensure that rsyslogd follows its default, standard BSD behavior. Of course, some configuration file changes are necessary in order to support the template system. However, rsyslogd should be able to use a standard syslog.conf and act like the orginal syslogd. However, an original syslogd will not work correctly with a rsyslog-enhanced configuration file. At best, it will generate funny looking file names. The second important concept to note is that this version of rsyslogd interacts transparently with the version of syslog found in the standard libraries. If a binary linked to the standard shared libraries fails to function correctly we would like an example of the anomalous behavior."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:124(para) 
+msgid "The main configuration file <filename>/etc/rsyslog.conf</filename> or an alternative file, given with the <option>-f</option> option, is read at startup. Any lines that begin with the hash mark (“#”) and empty lines are ignored. If an error occurs during parsing the error element is ignored. It is tried to parse the rest of the line."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:133(title) 
+msgid "OPTIONS"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:134(emphasis) 
+msgid "Note that in version 3 of rsyslog a number of command line options"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:135(emphasis) 
+msgid "have been deprecated and replaced with config file directives. The"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:136(option) 
+msgid "-c option controls the backward compatibility mode in use."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:143(para) 
+msgid "When sending UDP messages, there are potentially multiple pathes to the target destination. By default, <command>rsyslogd</command> only sends to the first target it can successfully send to. If -A is given, messages are sent to all targets. This may improve reliability, but may also cause message duplicaton. This option should enabled only if it is fully understood."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:157(para) 
+msgid "Causes <command>rsyslogd</command> to listen to IPv4 addresses only. If neither -4 nor -6 is given, <command>rsyslogd</command> listens to all configured addresses of the system."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:170(para) 
+msgid "Causes <command>rsyslogd</command> to listen to IPv6 addresses only. If neither -4 nor -6 is given, <command>rsyslogd</command> listens to all configured addresses of the system."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:180(option) 
+msgid "-c"
+msgstr "-c"
+
+#: ../C/rsyslogd.8.xml:181(emphasis) 
+msgid "version"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:184(para) 
+msgid "Selects the desired backward compatibility mode. It must always be the first option on the command line, as it influences processing of the other options. To use the rsyslog v3 native interface, specify -c3. To use compatibility mode , either do not use -c at all or use -c&lt;version&gt; where <emphasis remap=\"I\">version</emphasis> is the rsyslog version that it shall be compatible with. Using -c0 tells rsyslog to be command-line compatible to sysklogd, which is the default if -c is not given. <emphasis remap=\"B\">Please note that rsyslogd issues warning messages if the -c3</emphasis><emphasis remap=\"B\">command line option is not given.</emphasis> This is to alert you that your are running in compatibility mode. Compatibility mode interfers with you rsyslog.conf commands and may cause some undesired side-effects. It is meant to be used with a plain old rsyslog.conf - if you use new features, things become messy. So the best advice is to work through this document, convert your options and config file and then use rsyslog in native mode. In order to aid you in this process, rsyslog logs every compatibility-mode config file directive it has generated. So you can simply copy them from your logfile and paste them to the config."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:211(para) 
+msgid "Turns on debug mode. Using this the daemon will not proceed a <citerefentry><refentrytitle>fork</refentrytitle><manvolnum>2</manvolnum></citerefentry> to set itself in the background, but opposite to that stay in the foreground and write much debug information on the current tty. See the DEBUGGING section for more information."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:221(emphasis) 
+msgid "config file"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:224(para) 
+msgid "Specify an alternative configuration file instead of <filename>/etc/rsyslog.conf</filename>, which is the default."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:232(emphasis) 
+msgid "pid file"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:235(para) 
+msgid "Specify an alternative pid file instead of the default one. This option must be used if multiple instances of rsyslogd should run on a single machine."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:246(para) 
+msgid "Specify a hostname that should be logged only with its simple hostname and not the fqdn. Multiple hosts may be specified using the colon (“:”) separator."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:256(para) 
+msgid "Avoid auto-backgrounding. This is needed especially if the <command>rsyslogd</command> is started and controlled by <citerefentry><refentrytitle>init</refentrytitle><manvolnum>8</manvolnum></citerefentry>."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:264(option) 
+msgid "-N level"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:267(para) 
+msgid "Do a coNfig check. Do NOT run in regular mode, just check configuration file correctness. This option is meant to verify a config file. To do so, run rsyslogd interactively in foreground, specifying -f &lt;config-file&gt; and -N level. The level argument modifies behaviour. Currently, 0 is the same as not specifying the -N option at all (so this makes limited sense) and 1 actually activates the code. Later, higher levels will mean more verbosity (this is a forward-compatibility option). <command>rsyslogd</command> is started and controlled by <citerefentry><refentrytitle>init</refentrytitle><manvolnum>8</manvolnum></citerefentry>."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:283(emphasis) 
+msgid "add hostname if DNS fails during ACL processing"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:286(para) 
+msgid "During ACL processing, hostnames are resolved to IP addreses for performance reasons. If DNS fails during that process, the hostname is added as wildcard text, which results in proper, but somewhat slower operation once DNS is up again."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:295(emphasis) 
+msgid "do not resolve hostnames during ACL processing"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:298(para) 
+msgid "Do not resolve hostnames to IP addresses during ACL processing."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:307(para) 
+msgid "Specify a domainname that should be stripped off before logging. Multiple domains may be specified using the colon (“:”) separator. Please be advised that no sub-domains may be specified but only entire domains. For example if <option>-s north.de</option> is specified and the host logging resolves to satu.infodrom.north.de no domain would be cut, you will have to specify two domains like: <option>-s north.de:infodrom.north.de</option>."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:324(para) 
+msgid "This is a \"catch all\" option for some very seldomly-used user settings. The \"userlevel\" variable selects multiple things. Add the specific values to get the combined effect of them. A value of 1 prevents rsyslogd from parsing hostnames and tags inside messages. A value of 2 prevents rsyslogd from changing to the root directory. This is almost never a good idea in production use. This option was introduced in support of the internal testbed. To combine these two features, use a userlevel of 3 (1+2). Whenever you use an -u option, make sure you really understand what you do and why you do it."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:341(para) 
+msgid "Print version and exit."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:349(para) 
+msgid "Supress warnings issued when messages are received from non-authorized machines (those, that are in no AllowedSender list)."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:358(para) 
+msgid "Disable DNS for remote messages."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:364(title) 
+msgid "SIGNALS"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:365(para) 
+msgid "<emphasis remap=\"B\">Rsyslogd</emphasis> reacts to a set of signals. You may easily send a signal to <command>rsyslogd</command> using the following:"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:369(literallayout) 
+#, no-wrap
+msgid "\nkill -SIGNAL $(cat /var/run/syslogd.pid)\n"
+msgstr "\nkill -SIGNAL $(cat /var/run/syslogd.pid)\n"
+
+#. .fi
+#: ../C/rsyslogd.8.xml:373(para) 
+msgid "Note that -SIGNAL must be replaced with the actual signal you are trying to send, e.g. with HUP. So it then becomes:"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:375(literallayout) 
+#, no-wrap
+msgid "\nkill -HUP $(cat /var/run/syslogd.pid)\n"
+msgstr "\nkill -HUP $(cat /var/run/syslogd.pid)\n"
+
+#: ../C/rsyslogd.8.xml:382(emphasis) 
+msgid "HUP"
+msgstr "HUP"
+
+#: ../C/rsyslogd.8.xml:385(para) 
+msgid "This lets <command>rsyslogd</command> perform a re-initialization. All open files are closed, the configuration file (default is <filename>/etc/rsyslog.conf</filename>) will be reread and the <citerefentry><refentrytitle>rsyslog</refentrytitle><manvolnum>3</manvolnum></citerefentry> facility is started again."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:397(emphasis) 
+msgid "TERM , INT , QUIT"
+msgstr "TERM , INT , QUIT"
+
+#: ../C/rsyslogd.8.xml:400(para) 
+msgid "<emphasis remap=\"B\">Rsyslogd</emphasis> will die."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:406(emphasis) 
+msgid "USR1"
+msgstr "USR1"
+
+#: ../C/rsyslogd.8.xml:409(para) 
+msgid "Switch debugging on/off. This option can only be used if <command>rsyslogd</command> is started with the <option>-d</option> debug option."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:418(emphasis) 
+msgid "CHLD"
+msgstr "CHLD"
+
+#: ../C/rsyslogd.8.xml:421(para) 
+msgid "Wait for childs if some were born, because of wall'ing messages."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:427(title) 
+msgid "SECURITY THREATS"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:428(para) 
+msgid "There is the potential for the rsyslogd daemon to be used as a conduit for a denial of service attack. A rogue program(mer) could very easily flood the rsyslogd daemon with syslog messages resulting in the log files consuming all the remaining space on the filesystem. Activating logging over the inet domain sockets will of course expose a system to risks outside of programs or individuals on the local machine."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:435(para) 
+msgid "There are a number of methods of protecting a machine:"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:438(term) 
+msgid "1."
+msgstr "1."
+
+#: ../C/rsyslogd.8.xml:440(para) 
+msgid "Implement kernel firewalling to limit which hosts or networks have access to the 514/UDP socket."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:445(term) 
+msgid "2."
+msgstr "2."
+
+#: ../C/rsyslogd.8.xml:447(para) 
+msgid "Logging can be directed to an isolated or non-root filesystem which, if filled, will not impair the machine."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:452(term) 
+msgid "3."
+msgstr "3."
+
+#: ../C/rsyslogd.8.xml:454(para) 
+msgid "The ext2 filesystem can be used which can be configured to limit a certain percentage of a filesystem to usage by root only. <emphasis remap=\"B\">NOTE</emphasis> that this will require rsyslogd to be run as a non-root process. <emphasis remap=\"B\">ALSO NOTE</emphasis> that this will prevent usage of remote logging on the default port since rsyslogd will be unable to bind to the 514/UDP socket."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:462(term) 
+msgid "4."
+msgstr "4."
+
+#: ../C/rsyslogd.8.xml:464(para) 
+msgid "Disabling inet domain sockets will limit risk to the local machine."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:469(title) 
+msgid "Message replay and spoofing"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:470(para) 
+msgid "If remote logging is enabled, messages can easily be spoofed and replayed. As the messages are transmitted in clear-text, an attacker might use the information obtained from the packets for malicious things. Also, an attacker might replay recorded messages or spoof a sender's IP address, which could lead to a wrong perception of system activity. These can be prevented by using GSS-API authentication and encryption. Be sure to think about syslog network security before enabling it."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:480(title) 
+msgid "DEBUGGING"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:481(para) 
+msgid "When debugging is turned on using <option>-d</option> option then <command>rsyslogd</command> will be very verbose by writing much of what it does on stdout."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:488(title) 
+msgid "FILES"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:493(filename) 
+msgid "/etc/rsyslog.conf"
+msgstr "/etc/rsyslog.conf"
+
+#: ../C/rsyslogd.8.xml:496(para) 
+msgid "Configuration file for <command>rsyslogd</command>. See <citerefentry><refentrytitle>rsyslog.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry> for exact information."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:505(filename) 
+msgid "/dev/log"
+msgstr "/dev/log"
+
+#: ../C/rsyslogd.8.xml:508(para) 
+msgid "The Unix domain socket to from where local syslog messages are read."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:513(filename) 
+msgid "/var/run/rsyslogd.pid"
+msgstr "/var/run/rsyslogd.pid"
+
+#: ../C/rsyslogd.8.xml:516(para) 
+msgid "The file containing the process id of <command>rsyslogd</command>."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:522(emphasis) 
+msgid "prefix/lib/rsyslog"
+msgstr "prefix/lib/rsyslog"
+
+#: ../C/rsyslogd.8.xml:525(para) 
+msgid "Default directory for <command>rsyslogd</command> modules. The <emphasis remap=\"I\">prefix</emphasis> is specified during compilation (e.g. /usr/local)."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:535(title) 
+msgid "ENVIRONMENT"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:539(emphasis) 
+msgid "RSYSLOG_DEBUG"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:542(para) 
+msgid "Controls runtime debug support.It contains an option string with the following options possible (all are case insensitive):"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:549(term) 
+msgid "LogFuncFlow"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:551(para) 
+msgid "Print out the logical flow of functions (entering and exiting them)"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:555(term) 
+msgid "FileTrace"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:557(para) 
+msgid "Specifies which files to trace LogFuncFlow. If not set (the default), a LogFuncFlow trace is provided for all files. Set to limit it to the files specified.FileTrace may be specified multiple times, one file each (e.g. export RSYSLOG_DEBUG=\"LogFuncFlow FileTrace=vm.c FileTrace=expr.c\""
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:565(term) 
+msgid "PrintFuncDB"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:567(para) 
+msgid "Print the content of the debug function database whenever debug information is printed (e.g. abort case)!"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:572(term) 
+msgid "PrintAllDebugInfoOnExit"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:574(para) 
+msgid "Print all debug information immediately before rsyslogd exits (currently not implemented!)"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:579(term) 
+msgid "PrintMutexAction"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:581(para) 
+msgid "Print mutex action as it happens. Useful for finding deadlocks and such."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:586(term) 
+msgid "NoLogTimeStamp"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:588(para) 
+msgid "Do not prefix log lines with a timestamp (default is to do that)."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:592(term) 
+msgid "NoStdOut"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:594(para) 
+msgid "Do not emit debug messages to stdout. If RSYSLOG_DEBUGLOG is not set, this means no messages will be displayed at all."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:599(term) 
+msgid "Help"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:601(para) 
+msgid "Display a very short list of commands - hopefully a life saver if you can't access the documentation..."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:609(emphasis) 
+msgid "RSYSLOG_DEBUGLOG"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:612(para) 
+msgid "If set, writes (allmost) all debug message to the specified log file in addition to stdout."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:618(emphasis) 
+msgid "RSYSLOG_MODDIR"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:621(para) 
+msgid "Provides the default directory in which loadable modules reside."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:627(title) 
+msgid "BUGS"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:628(para) 
+msgid "Please review the file BUGS for up-to-date information on known bugs and annouyances."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:632(title) 
+msgid "Further Information"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:633(para) 
+msgid "Please visit <emphasis remap=\"B\"><ulink url=\"http://www.rsyslog.com/doc\">http://www.rsyslog.com/doc</ulink></emphasis> for additional information, tutorials and a support forum."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:638(title) 
+msgid "SEE ALSO"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:639(para) 
+msgid "<citerefentry><refentrytitle>rsyslog.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>, <citerefentry><refentrytitle>logger</refentrytitle><manvolnum>1</manvolnum></citerefentry>, <citerefentry><refentrytitle>syslog</refentrytitle><manvolnum>2</manvolnum></citerefentry>, <citerefentry><refentrytitle>syslog</refentrytitle><manvolnum>3</manvolnum></citerefentry>, <citerefentry><refentrytitle>services</refentrytitle><manvolnum>5</manvolnum></citerefentry>, <citerefentry><refentrytitle>savelog</refentrytitle><manvolnum>8</manvolnum></citerefentry>"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:647(title) 
+msgid "COLLABORATORS"
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:648(para) 
+msgid "<command>rsyslogd</command> is derived from sysklogd sources, which in turn was taken from the BSD sources. Special thanks to Greg Wettstein (greg@wind.enjellic.com) and Martin Schulze (joey@linux.de) for the fine sysklogd package."
+msgstr ""
+
+#: ../C/rsyslogd.8.xml:655(term) 
+msgid "Rainer Gerhards"
+msgstr "Rainer Gerhards"
+
+#: ../C/rsyslogd.8.xml:656(term) 
+msgid "Adiscon GmbH"
+msgstr "Adiscon GmbH"
+
+#: ../C/rsyslogd.8.xml:657(term) 
+msgid "Grossrinderfeld, Germany"
+msgstr "Grossrinderfeld, Germany"
+
+#: ../C/rsyslogd.8.xml:658(term) 
+msgid "rgerhards@adiscon.com"
+msgstr "rgerhards@adiscon.com"
+
+#. Put one translator per line, in the form of NAME <EMAIL>, YEAR1, YEAR2.
+#: ../C/rsyslogd.8.xml:0(None) 
+msgid "translator-credits"
+msgstr ""
+

@@ -1,0 +1,1135 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: rsyslog.conf.5 HEAD\n"
+"POT-Creation-Date: 2008-08-17 17:46+0900\n"
+"PO-Revision-Date: 2008-08-17 17:58+0900\n"
+"Last-Translator: Satoru SATOH <satoru.satoh@gmail.com>\n"
+"Language-Team: Japanese <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../C/rsyslog.conf.5.xml:24(date) ../C/rsyslog.conf.5.xml:29(refmiscinfo) 
+msgid "11 July 2008"
+msgstr "11 July 2008"
+
+#: ../C/rsyslog.conf.5.xml:27(refentrytitle) 
+msgid "RSYSLOG.CONF"
+msgstr "RSYSLOG.CONF"
+
+#: ../C/rsyslog.conf.5.xml:28(manvolnum) 
+msgid "5"
+msgstr "5"
+
+#: ../C/rsyslog.conf.5.xml:30(refmiscinfo) 
+msgid "Version 3.18.0"
+msgstr "Version 3.18.0"
+
+#: ../C/rsyslog.conf.5.xml:31(refmiscinfo) 
+msgid "Linux System Administration"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:34(refname) 
+msgid "rsyslog.conf"
+msgstr "rsyslog.conf"
+
+#: ../C/rsyslog.conf.5.xml:35(refpurpose) 
+msgid "rsyslogd(8) configuration file"
+msgstr "rsyslogd(8) 設定ファイル"
+
+#: ../C/rsyslog.conf.5.xml:39(title) 
+msgid "DESCRIPTION"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:40(para) 
+msgid "The <emphasis remap=\"I\">rsyslog.conf</emphasis> file is the main configuration file for the <citerefentry><refentrytitle>rsyslogd</refentrytitle><manvolnum>8</manvolnum></citerefentry> which logs system messages on *nix systems. This file specifies rules for logging. For special features see the <citerefentry><refentrytitle>rsyslogd</refentrytitle><manvolnum>8</manvolnum></citerefentry> manpage. Rsyslog.conf is backward-compatible with sysklogd's syslog.conf file. So if you migrate from sysklogd you can rename it and it should work."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:49(para) 
+msgid "<emphasis remap=\"B\">Note that this version of rsyslog ships with extensive documentation in html format.</emphasis> This is provided in the ./doc subdirectory and probably in a separate package if you installed rsyslog via a packaging system. To use rsyslog's advanced features, you <emphasis remap=\"B\">need</emphasis> to look at the html documentation, because the man pages only cover basic aspects of operation."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:58(title) 
+msgid "MODULES"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:59(para) 
+msgid "Rsyslog has a modular design. Consequently, there is a growing number of modules. See the html documentation for their full description."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:64(emphasis) 
+msgid "omsnmp"
+msgstr "omsnmp"
+
+#: ../C/rsyslog.conf.5.xml:67(para) 
+msgid "SNMP trap output module"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:72(emphasis) 
+msgid "omgssapi"
+msgstr "omgssapi"
+
+#: ../C/rsyslog.conf.5.xml:75(para) 
+msgid "Output module for GSS-enabled syslog"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:80(emphasis) 
+msgid "ommysql"
+msgstr "ommysql"
+
+#: ../C/rsyslog.conf.5.xml:83(para) 
+msgid "Output module for MySQL"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:88(emphasis) 
+msgid "omrelp"
+msgstr "omrelp"
+
+#: ../C/rsyslog.conf.5.xml:91(para) 
+msgid "Output module for the reliable RELP protocol (prevents message loss). For details, see below at imrelp and the html documentation. It can be used like this:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:97(para) 
+msgid "*.* :omrelp:server:port"
+msgstr "*.* :omrelp:server:port"
+
+#: ../C/rsyslog.conf.5.xml:98(para) 
+msgid "*.* :omrelp:192.168.0.1:2514 # actual sample"
+msgstr "*.* :omrelp:192.168.0.1:2514 # actual sample"
+
+#: ../C/rsyslog.conf.5.xml:102(emphasis) 
+msgid "ompgsql"
+msgstr "ompgsql"
+
+#: ../C/rsyslog.conf.5.xml:105(para) 
+msgid "Output module for PostgreSQL"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:110(emphasis) 
+msgid "omlibdbi"
+msgstr "omlibdbi"
+
+#: ../C/rsyslog.conf.5.xml:113(para) 
+msgid "Generic database output module (Firebird/Interbase, MS SQL, Sybase, SQLite, Ingres, Oracle, mSQL)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:119(emphasis) 
+msgid "imfile"
+msgstr "imfile"
+
+#: ../C/rsyslog.conf.5.xml:122(para) 
+msgid "Input module for text files"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:127(emphasis) 
+msgid "imudp"
+msgstr "imudp"
+
+#: ../C/rsyslog.conf.5.xml:130(para) 
+msgid "Input plugin for UDP syslog. Replaces the deprecated -r option. Can be used like this:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:135(para) ../C/rsyslog.conf.5.xml:207(para) 
+msgid "$ModLoad imudp"
+msgstr "$ModLoad imudp"
+
+#: ../C/rsyslog.conf.5.xml:136(para) 
+msgid "$InputUDPServerRun 514"
+msgstr "$InputUDPServerRun 514"
+
+#: ../C/rsyslog.conf.5.xml:140(emphasis) ../C/rsyslog.conf.5.xml:153(emphasis) 
+msgid "imtcp"
+msgstr "imtcp"
+
+#: ../C/rsyslog.conf.5.xml:143(para) 
+msgid "Input plugin for plain TCP syslog. Replaces the deprecated -t option. Can be used like this:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:148(para) 
+msgid "$ModLoad imtcp"
+msgstr "$ModLoad imtcp"
+
+#: ../C/rsyslog.conf.5.xml:149(para) 
+msgid "$InputTCPServerRun 514"
+msgstr "$InputTCPServerRun 514"
+
+#: ../C/rsyslog.conf.5.xml:156(para) 
+msgid "Input plugin for the RELP protocol. RELP can be used instead of UDP or plain TCP syslog to provide reliable delivery of syslog messages. Please note that plain TCP syslog does NOT provide truly reliable delivery, with it messages may be lost when there is a connection problem or the server shuts down. RELP prevents message loss in those cases. It can be used like this:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:166(para) 
+msgid "$ModLoad imrelp"
+msgstr "$ModLoad imrelp"
+
+#: ../C/rsyslog.conf.5.xml:167(para) 
+msgid "$InputRELPServerRun 2514"
+msgstr "$InputRELPServerRun 2514"
+
+#: ../C/rsyslog.conf.5.xml:171(emphasis) 
+msgid "imgssapi"
+msgstr "imgssapi"
+
+#: ../C/rsyslog.conf.5.xml:174(para) 
+msgid "Input plugin for plain TCP and GSS-enable syslog"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:179(emphasis) 
+msgid "immark"
+msgstr "immark"
+
+#: ../C/rsyslog.conf.5.xml:182(para) 
+msgid "Support for mark messages"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:187(emphasis) 
+msgid "imklog"
+msgstr "imklog"
+
+#: ../C/rsyslog.conf.5.xml:190(para) 
+msgid "Kernel logging. To include kernel log messages, you need to do"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:194(para) 
+msgid "$ModLoad imklog"
+msgstr "$ModLoad imklog"
+
+#: ../C/rsyslog.conf.5.xml:195(para) 
+msgid "Please note that the klogd daemon is no longer necessary and consequently no longer provided by the rsyslog package."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:200(emphasis) 
+msgid "imuxsock"
+msgstr "imuxsock"
+
+#: ../C/rsyslog.conf.5.xml:203(para) 
+msgid "Unix sockets, including the system log socket. You need to specify"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:208(para) 
+msgid "in order to receive log messages from local system processes. This config directive should only left out if you know exactly what you are doing."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:213(title) 
+msgid "BASIC STRUCTURE"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:214(para) 
+msgid "Lines starting with a hash mark ('#') and empty lines are ignored. Rsyslog.conf should contain following sections (sorted by recommended order in file):"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:218(term) 
+msgid "Global directives"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:220(para) 
+msgid "Global directives set some global properties of whole rsyslog daemon, for example size of main message queue ($MainMessageQueueSize), loading external modules ($ModLoad) and so on. All global directives need to be specified on a line by their own and must start with a dollar-sign. The complete list of global directives can be found in html documentation in doc directory or online on web pages."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:228(term) 
+msgid "Templates"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:230(para) 
+msgid "Templates allow you to specify format of the logged message. They are also used for dynamic file name generation. They have to be defined before they are used in rules. For more info about templates see TEMPLATES section of this manpage."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:236(term) 
+msgid "Output channels"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:238(para) 
+msgid "Output channels provide an umbrella for any type of output that the user might want. They have to be defined before they are used in rules. For more info about output channels see OUTPUT CHANNELS section of this manpage."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:244(term) 
+msgid "Rules (selector + action)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:246(para) 
+msgid "Every rule line consists of two fields, a selector field and an action field. These two fields are separated by one or more spaces or tabs. The selector field specifies a pattern of facilities and priorities belonging to the specified action."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:254(title) 
+msgid "ACTIONS"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:255(para) 
+msgid "The action field of a rule describes what to do with the message. In general, message content is written to a kind of \"logfile\". But also other actions might be done, like writing to a database table or forwarding to another host."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:259(title) 
+msgid "Regular file"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:260(para) 
+msgid "Typically messages are logged to real files. The file has to be specified with full pathname, beginning with a slash ('/')."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:263(emphasis) ../C/rsyslog.conf.5.xml:273(emphasis) ../C/rsyslog.conf.5.xml:301(emphasis) ../C/rsyslog.conf.5.xml:353(emphasis) ../C/rsyslog.conf.5.xml:372(emphasis) 
+msgid "Example:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:265(literallayout) 
+#, no-wrap
+msgid "\n*.*     /var/log/traditionalfile.log;RSYSLOG_TraditionalFormat      # log to a file in the traditional format\n"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:269(para) 
+msgid "Note: if you would like to use high-precision timestamps in your log files, just remove the \";RSYSLOG_TraditionalFormat\". That will select the default template, which, if not changed, uses RFC 3339 timestamps."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:275(literallayout) 
+#, no-wrap
+msgid "\n*.*     /var/log/file.log # log to a file with RFC3339 timestamps\n"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:281(title) 
+msgid "Named pipes"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:282(para) 
+msgid "This version of rsyslogd(8) has support for logging output to named pipes (fifos). A fifo or named pipe can be used as a destination for log messages by prepending a pipe symbol ('|') to the name of the file. This is handy for debugging. Note that the fifo must be created with the mkfifo(1) command before rsyslogd(8) is started."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:288(title) 
+msgid "Terminal and console"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:289(para) 
+msgid "If the file you specified is a tty, special tty-handling is done, same with /dev/console."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:292(title) 
+msgid "Remote machine"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:293(para) 
+msgid "There are three ways to forward message: the traditional UDP transport, which is extremely lossy but standard, the plain TCP based transport which loses messages only during certain situations but is widely available and the RELP transport which does not lose messages but is currently available only as part of rsyslogd 3.15.0 and above."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:297(para) 
+msgid "To forward messages to another host via UDP, prepend the hostname with the at sign (\"@\"). To forward it via plain tcp, prepend two at signs (\"@@\"). To forward via RELP, prepend the string \":omrelp:\" in front of the hostname."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:303(literallayout) 
+#, no-wrap
+msgid "\n*.* @192.168.0.1\n"
+msgstr "\n*.* @192.168.0.1\n"
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:307(para) 
+msgid "In the example above, messages are forwarded via UDP to the machine 192.168.0.1, the destination port defaults to 514. Due to the nature of UDP, you will probably lose some messages in transit. If you expect high traffic volume, you can expect to lose a quite noticeable number of messages (the higher the traffic, the more likely and severe is message loss)."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:312(emphasis) 
+msgid "If you would like to prevent message loss, use RELP:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:314(literallayout) 
+#, no-wrap
+msgid "\n*.* :omrelp:192.168.0.1:2514\n"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:318(para) 
+msgid "Note that a port number was given as there is no standard port for relp."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:319(para) 
+msgid "Keep in mind that you need to load the correct input and output plugins (see \"Modules\" above)."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:320(para) 
+msgid "Please note that rsyslogd offers a variety of options in regarding to remote forwarding. For full details, please see the html documentation."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:324(title) 
+msgid "List of users"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:325(para) 
+msgid "Usually critical messages are also directed to “root” on that machine. You can specify a list of users that shall get the message by simply writing the login. You may specify more than one user by separating them with commas (','). If they're logged in they get the message. Don't think a mail would be sent, that might be too late."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:331(title) 
+msgid "Everyone logged on"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:332(para) 
+msgid "Emergency messages often go to all users currently online to notify them that something strange is happening with the system. To specify this wall(1)-feature use an asterisk ('*')."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:336(title) 
+msgid "Database table"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:337(para) 
+msgid "This allows logging of the message to a database table. By default, a MonitorWare-compatible schema is required for this to work. You can create that schema with the createDB.SQL file that came with the rsyslog package. You can also use any other schema of your liking - you just need to define a proper template and assign this template to the action."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:342(para) 
+msgid "See the html documentation for further details on database logging."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:345(title) 
+msgid "Discard"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:346(para) 
+msgid "If the discard action is carried out, the received message is immediately discarded. Discard can be highly effective if you want to filter out some annoying messages that otherwise would fill your log files. To do that, place the discard actions early in your log files. This often plays well with property-based filters, giving you great freedom in specifying what you do not want."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:351(para) 
+msgid "Discard is just the single tilde character with no further parameters."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:355(literallayout) 
+#, no-wrap
+msgid "\n*.*   ~      # discards everything.\n"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:361(title) 
+msgid "Output channel"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:362(para) 
+msgid "Binds an output channel definition (see there for details) to this action. Output channel actions must start with a $-sign, e.g. if you would like to bind your output channel definition \"mychannel\" to the action, use \"$mychannel\". Output channels support template definitions like all all other actions."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:368(title) 
+msgid "Shell execute"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:369(para) 
+msgid "This executes a program in a subshell. The program is passed the template-generated message as the only command line parameter. Rsyslog waits until the program terminates and only then continues to run."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:374(literallayout) 
+#, no-wrap
+msgid "\n^program-to-execute;template\n"
+msgstr "\n^program-to-execute;template\n"
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:378(para) 
+msgid "The program-to-execute can be any valid executable. It receives the template string as a single parameter (argv[1])."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:383(title) 
+msgid "FILTER CONDITIONS"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:384(para) 
+msgid "Rsyslog offers three different types \"filter conditions\":"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:385(para) 
+msgid "* \"traditional\" severity and facility based selectors"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:386(para) 
+msgid "* property-based filters"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:387(para) 
+msgid "* expression-based filters"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:389(title) 
+msgid "Blocks"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:390(para) 
+msgid "Rsyslogd supports BSD-style blocks inside rsyslog.conf. Each block of lines is separated from the previous block by a program or hostname specification. A block will only log messages corresponding to the most recent program and hostname specifications given. Thus, a block which selects \"ppp\" as the program, directly followed by a block that selects messages from the hostname \"dialhost\", then the second block will only log messages from the ppp program on dialhost."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:397(title) 
+msgid "Selectors"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:398(para) 
+msgid "<emphasis remap=\"B\">Selectors are the traditional way of filtering syslog messages.</emphasis> They have been kept in rsyslog with their original syntax, because it is well-known, highly effective and also needed for compatibility with stock syslogd configuration files. If you just need to filter based on priority and facility, you should do this with selector lines. They are not second-class citizens in rsyslog and offer the best performance for this job."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:405(title) 
+msgid "Property-Based Filters"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:406(para) 
+msgid "Property-based filters are unique to rsyslogd. They allow to filter on any property, like HOSTNAME, syslogtag and msg."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:408(para) 
+msgid "A property-based filter must start with a colon in column 0. This tells rsyslogd that it is the new filter type. The colon must be followed by the property name, a comma, the name of the compare operation to carry out, another comma and then the value to compare against. This value must be quoted. There can be spaces and tabs between the commas. Property names and compare operations are case-sensitive, so \"msg\" works, while \"MSG\" is an invalid property name. In brief, the syntax is as follows:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:413(literallayout) 
+#, no-wrap
+msgid "\n:property, [!]compare-operation, \"value\"\n"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:417(para) 
+msgid "The following compare-operations are currently supported:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:420(emphasis) 
+msgid "contains"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:423(para) 
+msgid "Checks if the string provided in value is contained in the property"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:428(emphasis) 
+msgid "isequal"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:431(para) 
+msgid "Compares the \"value\" string provided and the property contents. These two values must be exactly equal to match."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:436(emphasis) 
+msgid "startswith"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:439(para) 
+msgid "Checks if the value is found exactly at the beginning of the property value"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:444(emphasis) 
+msgid "regex"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:447(para) 
+msgid "Compares the property against the provided regular expression."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:455(title) 
+msgid "Expression-Based Filters"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:456(para) 
+msgid "See the html documentation for this feature."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:460(title) 
+msgid "TEMPLATES"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:461(para) 
+msgid "Every output in rsyslog uses templates - this holds true for files, user messages and so on. Templates compatible with the stock syslogd formats are hardcoded into rsyslogd. If no template is specified, we use one of these hardcoded templates. Search for \"template_\" in syslogd.c and you will find the hardcoded ones."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:466(para) 
+msgid "A template consists of a template directive, a name, the actual template text and optional options. A sample is:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:469(emphasis) 
+msgid "$template MyTemplateName,\"\\\\7Text %property% some more text\\\\n\",&lt;options&gt;"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:473(para) 
+msgid "The \"$template\" is the template directive. It tells rsyslog that this line contains a template. The backslash is an escape character. For example, \\7 rings the bell (this is an ASCII value), \\n is a new line. The set in rsyslog is a bit restricted currently."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:477(para) 
+msgid "All text in the template is used literally, except for things within percent signs. These are properties and allow you access to the contents of the syslog message. Properties are accessed via the property replacer and it can for example pick a substring or do date-specific formatting. More on this is the PROPERTY REPLACER section of this manpage."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:482(para) 
+msgid "To escape:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:483(para) 
+msgid "% = \\­"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:484(para) 
+msgid "\\ = \\\\  '\\´ is used to escape (as in C)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:485(para) 
+msgid "$template TraditionalFormat,\"%timegenerated% %HOSTNAME% %syslogtag%%msg%\\n\""
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:486(para) 
+msgid "Properties can be accessed by the property replacer (see there for details)."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:487(para) 
+msgid "<emphasis remap=\"B\">Please note that templates can also by used to generate selector lines with dynamic file names.</emphasis> For example, if you would like to split syslog messages from different hosts to different files (one per host), you can define the following template:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:491(emphasis) 
+msgid "$template DynFile,\"/var/log/system-%HOSTNAME%.log"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:495(para) 
+msgid "This template can then be used when defining an output selector line. It will result in something like \"/var/log/system-localhost.log\""
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:499(title) 
+msgid "Template options"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:500(para) 
+msgid "The &lt;options&gt; part is optional. It carries options influencing the template as whole. See details below. Be sure NOT to mistake template options with property options - the later ones are processed by the property replacer and apply to a SINGLE property, only (and not the whole template)."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:504(para) 
+msgid "Template options are case-insensitive. Currently defined are:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:508(term) 
+msgid "sql"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:510(para) 
+msgid "format the string suitable for a SQL statement in MySQL format. This will replace single quotes (\"'\") and the backslash character by their backslash-escaped counterpart (\"´\" and \"\\\") inside each field. Please note that in MySQL configuration, the NO_BACKSLASH_ESCAPES mode must be turned off for this format to work (this is the default)."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:517(term) 
+msgid "stdsql"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:519(para) 
+msgid "format the string suitable for a SQL statement that is to be sent to a standards-compliant sql server. This will replace single quotes (\"'\") by two single quotes (\"''\") inside each field. You must use stdsql together with MySQL if in MySQL configuration the NO_BACKSLASH_ESCAPES is turned on."
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:528(para) 
+msgid "Either the <emphasis remap=\"B\">sql</emphasis> or <emphasis remap=\"B\">stdsql</emphasis> option <emphasis remap=\"B\">MUST</emphasis> be specified when a template is used for writing to a database, otherwise injection might occur. Please note that due to the unfortunate fact that several vendors have violated the sql standard and introduced their own escape methods, it is impossible to have a single option doing all the work. So you yourself must make sure you are using the right format. <emphasis remap=\"B\">If you choose the wrong one, you are still vulnerable to sql injection.</emphasis>"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:540(para) 
+msgid "Please note that the database writer *checks* that the sql option is present in the template. If it is not present, the write database action is disabled. This is to guard you against accidental forgetting it and then becoming vulnerable to SQL injection. The sql option can also be useful with files - especially if you want to import them into a database on another machine for performance reasons. However, do NOT use it if you do not have a real need for it - among others, it takes some toll on the processing time. Not much, but on a really busy system you might notice it ;)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:548(para) 
+msgid "The default template for the write to database action has the sql option set."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:551(title) 
+msgid "Template examples"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:552(para) 
+msgid "Please note that the samples are split across multiple lines. A template MUST NOT actually be split across multiple lines."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:554(para) 
+msgid "A template that resembles traditional syslogd file output:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:556(para) 
+msgid "$template TraditionalFormat,\"%timegenerated% %HOSTNAME%"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:557(para) 
+msgid "%syslogtag%%msg:::drop-last-lf%\\n\""
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:561(para) 
+msgid "A template that tells you a little more about the message:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:563(para) 
+msgid "$template precise,\"%syslogpriority%,%syslogfacility%,%timegenerated%,%HOSTNAME%,"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:564(para) 
+msgid "%syslogtag%,%msg%\\n\""
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:568(para) 
+msgid "A template for RFC 3164 format:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:570(synopsis) 
+#, no-wrap
+msgid "\n$template RFC3164fmt,\"&lt;%PRI%&gt;%TIMESTAMP% %HOSTNAME% %syslogtag%%msg%\"\n"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:575(para) 
+msgid "A template for the format traditionally used for user messages:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:577(synopsis) 
+#, no-wrap
+msgid "\n$template usermsg,\" XXXX%syslogtag%%msg%\\n\\r\"\n"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:582(para) 
+msgid "And a template with the traditional wall-message format:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:584(synopsis) 
+#, no-wrap
+msgid "\n$template wallmsg,\"\\r\\n\\7Message from syslogd@%HOSTNAME% at %timegenerated%\"\n"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:590(emphasis) 
+msgid "A template that can be used for writing to a database (please note the SQL template option)"
+msgstr ""
+
+#. .ad l
+#: ../C/rsyslog.conf.5.xml:594(para) 
+msgid "$template MySQLInsert,\"insert iut, message, receivedat values ('%iut%', '%msg:::UPPERCASE%', '%timegenerated:::date-mysql%') into systemevents\\r\\n\", SQL"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:597(para) 
+msgid "NOTE 1: This template is embedded into core application under name <emphasis remap=\"B\">StdDBFmt</emphasis> , so you don't need to define it."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:600(para) 
+msgid "NOTE 2: You have to have MySQL module installed to use this template."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:608(title) 
+msgid "OUTPUT CHANNELS"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:609(para) 
+msgid "Output Channels are a new concept first introduced in rsyslog 0.9.0. As of this writing, it is most likely that they will be replaced by something different in the future. So if you use them, be prepared to change you configuration file syntax when you upgrade to a later release."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:613(para) 
+msgid "Output channels are defined via an $outchannel directive. It's syntax is as follows:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:615(emphasis) 
+msgid "$outchannel name,file-name,max-size,action-on-max-size"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:619(para) 
+msgid "name is the name of the output channel (not the file), file-name is the file name to be written to, max-size the maximum allowed size and action-on-max-size a command to be issued when the max size is reached. This command always has exactly one parameter. The binary is that part of action-on-max-size before the first space, its parameter is everything behind that space."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:624(para) 
+msgid "Keep in mind that $outchannel just defines a channel with \"name\". It does not activate it. To do so, you must use a selector line (see below). That selector line includes the channel name plus an $ sign in front of it. A sample might be:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:628(synopsis) 
+#, no-wrap
+msgid "\n*.* $mychannel\n"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:635(title) 
+msgid "PROPERTY REPLACER"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:636(para) 
+msgid "The property replacer is a core component in rsyslogd's output system. A syslog message has a number of well-defined properties (see below). Each of this properties can be accessed and manipulated by the property replacer. With it, it is easy to use only part of a property value or manipulate the value, e.g. by converting all characters to lower case."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:641(title) 
+msgid "Accessing Properties"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:642(para) 
+msgid "Syslog message properties are used inside templates. They are accessed by putting them between percent signs. Properties can be modified by the property replacer. The full syntax is as follows:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:645(emphasis) 
+msgid "%propname:fromChar:toChar:options%"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:649(para) 
+msgid "propname is the name of the property to access. <emphasis remap=\"B\">It is case-sensitive.</emphasis>"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:653(title) 
+msgid "Available Properties"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:657(emphasis) 
+msgid "msg"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:660(para) 
+msgid "the MSG part of the message (aka \"the message\" ;))"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:665(emphasis) 
+msgid "rawmsg"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:668(para) 
+msgid "the message exactly as it was received from the socket. Should be useful for debugging."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:673(emphasis) 
+msgid "HOSTNAME"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:676(para) 
+msgid "hostname from the message"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:681(emphasis) 
+msgid "FROMHOST"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:684(para) 
+msgid "hostname of the system the message was received from (in a relay chain, this is the system immediately in front of us and not necessarily the original sender)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:690(emphasis) 
+msgid "syslogtag"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:693(para) 
+msgid "TAG from the message"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:698(emphasis) 
+msgid "programname"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:701(para) 
+msgid "the \"static\" part of the tag, as defined by BSD syslogd. For example, when TAG is \"named[12345]\", programname is \"named\"."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:707(emphasis) 
+msgid "PRI"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:710(para) 
+msgid "PRI part of the message - undecoded (single value)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:715(emphasis) 
+msgid "PRI-text"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:718(para) 
+msgid "the PRI part of the message in a textual form (e.g. \"syslog.info\")"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:723(emphasis) 
+msgid "IUT"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:726(para) 
+msgid "the monitorware InfoUnitType - used when talking to a MonitorWare backend (also for phpLogCon)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:731(emphasis) 
+msgid "syslogfacility"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:734(para) 
+msgid "the facility from the message - in numerical form"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:739(emphasis) 
+msgid "syslogfacility-text"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:742(para) 
+msgid "the facility from the message - in text form"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:747(emphasis) 
+msgid "syslogseverity"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:750(para) 
+msgid "severity from the message - in numerical form"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:755(emphasis) 
+msgid "syslogseverity-text"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:758(para) 
+msgid "severity from the message - in text form"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:763(emphasis) 
+msgid "timegenerated"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:766(para) 
+msgid "timestamp when the message was RECEIVED. Always in high resolution"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:771(emphasis) 
+msgid "timereported"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:774(para) 
+msgid "timestamp from the message. Resolution depends on what was provided in the message (in most cases, only seconds)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:779(emphasis) 
+msgid "TIMESTAMP"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:782(para) 
+msgid "alias for timereported"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:787(emphasis) 
+msgid "PROTOCOL-VERSION"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:790(para) 
+msgid "The contents of the PROTOCOL-VERSION field from IETF draft draft-ietf-syslog-protocol"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:795(emphasis) 
+msgid "STRUCTURED-DATA"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:798(para) 
+msgid "The contents of the STRUCTURED-DATA field from IETF draft draft-ietf-syslog-protocol"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:803(emphasis) 
+msgid "APP-NAME"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:806(para) 
+msgid "The contents of the APP-NAME field from IETF draft draft-ietf-syslog-protocol"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:811(emphasis) 
+msgid "PROCID"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:814(para) 
+msgid "The contents of the PROCID field from IETF draft draft-ietf-syslog-protocol"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:819(emphasis) 
+msgid "MSGID"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:822(para) 
+msgid "The contents of the MSGID field from IETF draft draft-ietf-syslog-protocol"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:827(emphasis) 
+msgid "$NOW"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:830(para) 
+msgid "The current date stamp in the format YYYY-MM-DD"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:835(emphasis) 
+msgid "$YEAR"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:838(para) 
+msgid "The current year (4-digit)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:843(emphasis) 
+msgid "$MONTH"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:846(para) 
+msgid "The current month (2-digit)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:851(emphasis) 
+msgid "$DAY"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:854(para) 
+msgid "The current day of the month (2-digit)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:859(emphasis) 
+msgid "$HOUR"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:862(para) 
+msgid "The current hour in military (24 hour) time (2-digit)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:867(emphasis) 
+msgid "$MINUTE"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:870(para) 
+msgid "The current minute (2-digit)"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:874(para) 
+msgid "Properties starting with a $-sign are so-called system properties. These do NOT stem from the message but are rather internally-generated."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:878(title) 
+msgid "Character Positions"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:879(para) 
+msgid "FromChar and toChar are used to build substrings. They specify the offset within the string that should be copied. Offset counting starts at 1, so if you need to obtain the first 2 characters of the message text, you can use this syntax: \"%msg:1:2%\". If you do not wish to specify from and to, but you want to specify options, you still need to include the colons. For example, if you would like to convert the full message text to lower case, use \"%msg:::lowercase%\". If you would like to extract from a position until the end of the string, you can place a dollar-sign (\"$\") in toChar (e.g. %msg:10:$%, which will extract from position 10 to the end of the string)."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:886(para) 
+msgid "There is also support for <emphasis remap=\"B\">regular expressions.</emphasis> To use them, you need to place a \"R\" into FromChar. This tells rsyslog that a regular expression instead of position-based extraction is desired. The actual regular expression <emphasis remap=\"B\">must</emphasis> then be provided in toChar. The regular expression must be followed by the string \"--end\". It denotes the end of the regular expression and will not become part of it. If you are using regular expressions, the property replacer will return the part of the property text that matches the regular expression. An example for a property replacer sequence with a regular expression is: \"%msg:R:.*Sev:. \\(.*\\) \\[.*--end%\""
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:897(para) 
+msgid "Also, extraction can be done based on so-called \"fields\". To do so, place a \"F\" into FromChar. A field in its current definition is anything that is delimited by a delimiter character. The delimiter by default is TAB (US-ASCII value 9). However, if can be changed to any other US-ASCII character by specifying a comma and the decimal US-ASCII value of the delimiter immediately after the \"F\". For example, to use comma (\",\") as a delimiter, use this field specifier: \"F,44\". If your syslog data is delimited, this is a quicker way to extract than via regular expressions (actually, a *much* quicker way). Field counting starts at 1. Field zero is accepted, but will always lead to a \"field not found\" error. The same happens if a field number higher than the number of fields in the property is requested. The field number must be placed in the \"ToChar\" parameter. An example where the 3rd field (delimited by TAB) from the msg property is extracted is as follows: \"%msg:F:3%\". The same example with semicolon as delimiter is \"%msg:F,59:3%\"."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:908(para) 
+msgid "Please note that the special characters \"F\" and \"R\" are case-sensitive. Only upper case works, lower case will return an error. There are no white spaces permitted inside the sequence (that will lead to error messages and will NOT provide the intended result)."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:913(title) 
+msgid "Property Options"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:914(para) 
+msgid "Property options are case-insensitive. Currently, the following options are defined:"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:917(term) 
+msgid "uppercase"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:919(para) 
+msgid "convert property to lowercase only"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:923(term) 
+msgid "lowercase"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:925(para) 
+msgid "convert property text to uppercase only"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:929(term) 
+msgid "drop-last-lf"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:931(para) 
+msgid "The last LF in the message (if any), is dropped. Especially useful for PIX."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:935(term) 
+msgid "date-mysql"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:937(para) 
+msgid "format as mysql date"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:941(term) 
+msgid "date-rfc3164"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:943(para) 
+msgid "format as RFC 3164 date"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:947(term) 
+msgid "date-rfc3339"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:949(para) 
+msgid "format as RFC 3339 date"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:953(term) 
+msgid "escape-cc"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:955(para) 
+msgid "replace control characters (ASCII value 127 and values less then 32) with an escape sequence. The sequence is \"#&lt;charval&gt;\" where charval is the 3-digit decimal value of the control character. For example, a tabulator would be replaced by \"#009\"."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:959(term) 
+msgid "space-cc"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:961(para) 
+msgid "replace control characters by spaces"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:965(term) 
+msgid "drop-cc"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:967(para) 
+msgid "drop control characters - the resulting string will neither contain control characters, escape sequences nor any other replacement character like space."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:974(title) 
+msgid "QUEUED OPERATIONS"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:975(para) 
+msgid "Rsyslogd supports queued operations to handle offline outputs (like remote syslogd's or database servers being down). When running in queued mode, rsyslogd buffers messages to memory and optionally to disk (on an as-needed basis). Queues survive rsyslogd restarts."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:979(para) 
+msgid "It is highly suggested to use remote forwarding and database writing in queued mode, only."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:981(para) 
+msgid "To learn more about queued operations, see the html documentation."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:984(title) 
+msgid "FILES"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:989(filename) 
+msgid "/etc/rsyslog.conf"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:992(para) 
+msgid "Configuration file for <emphasis remap=\"B\">rsyslogd</emphasis>"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:999(title) 
+msgid "SEE ALSO"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:1000(para) 
+msgid "<citerefentry><refentrytitle>rsyslogd</refentrytitle><manvolnum>8</manvolnum></citerefentry>, <citerefentry><refentrytitle>logger</refentrytitle><manvolnum>1</manvolnum></citerefentry>, <citerefentry><refentrytitle>syslog</refentrytitle><manvolnum>3</manvolnum></citerefentry>"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:1003(para) 
+msgid "The complete documentation can be found in the doc folder of the rsyslog distribution or online at"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:1005(ulink) 
+msgid "http://www.rsyslog.com/doc"
+msgstr ""
+
+#. remap='RE'
+#: ../C/rsyslog.conf.5.xml:1010(para) 
+msgid "Please note that the man page reflects only a subset of the configuration options. Be sure to read the html documentation for all features and details. This is especially vital if you plan to set up a more-then-extremely-simple system."
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:1015(title) 
+msgid "AUTHORS"
+msgstr ""
+
+#: ../C/rsyslog.conf.5.xml:1016(para) 
+msgid "<emphasis remap=\"B\">rsyslogd</emphasis> is taken from sysklogd sources, which have been heavily modified by Rainer Gerhards (rgerhards@adiscon.com) and others."
+msgstr ""
+
+#. Put one translator per line, in the form of NAME <EMAIL>, YEAR1, YEAR2.
+#: ../C/rsyslog.conf.5.xml:0(None) 
+msgid "translator-credits"
+msgstr ""
+
