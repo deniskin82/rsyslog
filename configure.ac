@@ -654,6 +654,15 @@ AC_ARG_ENABLE(imtemplate,
 AM_CONDITIONAL(ENABLE_IMTEMPLATE, test x$enable_imtemplate = xyes)
 # end of copy template - be sure to serach for imtemplate to find everything!
 
+# whether to re-generate man files from xml or po sources.
+AC_ARG_ENABLE(regenerate-man,
+        [AC_HELP_STRING([--enable-regenerate-man],
+                [re-generate man files from XML or PO files @<:@default=no@:>@])],
+        [AC_CHECK_MAN_I18N_TOOLS([enable_regenerate_man="yes"],
+                [AC_MSG_WARN(Disable man regeneration.)])]
+)
+AM_CONDITIONAL([ENABLE_REGENERATE_MAN],[test "x$enable_regenerate_man" = "xyes"])
+
 
 AC_CONFIG_FILES([Makefile \
 		runtime/Makefile \
