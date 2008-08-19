@@ -1,0 +1,667 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd">
+<!-- lifted from troff+man by doclifter -->
+<refentry id="rsyslogd8">
+  <!--  Copyright 2004\-2008 Rainer Gerhards and Adiscon for the rsyslog modifications -->
+  <!--  May be distributed under the GNU General Public License -->
+  <refentryinfo>
+    <date>29 July 2008</date>
+  </refentryinfo>
+  <refmeta>
+    <refentrytitle>RSYSLOGD</refentrytitle>
+    <manvolnum>8</manvolnum>
+    <refmiscinfo class="date">29 July 2008</refmiscinfo>
+    <refmiscinfo class="source">Version 3.21.1</refmiscinfo>
+    <refmiscinfo class="manual">Linux System Administration</refmiscinfo>
+  </refmeta>
+  <refnamediv id="name">
+    <refname>rsyslogd</refname>
+    <refpurpose>reliable and extended syslogd </refpurpose>
+  </refnamediv>
+  <!-- body begins here -->
+  <refsynopsisdiv id="synopsis">
+    <cmdsynopsis>
+      <command>rsyslogd</command>
+      <arg choice="opt">-4 </arg>
+      <arg choice="opt">-6 </arg>
+      <arg choice="opt">-A </arg>
+      <arg choice="opt">-d </arg>
+      <arg choice="opt">
+        <arg choice="plain">-f </arg>
+        <arg choice="plain">
+          <replaceable>config</replaceable>
+        </arg>
+        <arg choice="plain">
+          <replaceable>file</replaceable>
+        </arg>
+      </arg>
+      <sbr/>
+      <arg choice="opt">
+        <arg choice="plain">-i </arg>
+        <arg choice="plain">
+          <replaceable>pid</replaceable>
+        </arg>
+        <arg choice="plain">
+          <replaceable>file</replaceable>
+        </arg>
+      </arg>
+      <arg choice="opt">
+        <arg choice="plain">-l </arg>
+        <arg choice="plain">
+          <replaceable>hostlist</replaceable>
+        </arg>
+      </arg>
+      <arg choice="opt">-n </arg>
+      <arg choice="opt">
+        <arg choice="plain">-N </arg>
+        <arg choice="plain">
+          <replaceable>level</replaceable>
+        </arg>
+      </arg>
+      <sbr/>
+      <arg choice="opt">-q </arg>
+      <arg choice="opt">-Q </arg>
+      <arg choice="opt">
+        <arg choice="plain">-s </arg>
+        <arg choice="plain">
+          <replaceable>domainlist</replaceable>
+        </arg>
+      </arg>
+      <arg choice="opt">
+        <arg choice="plain">-u </arg>
+        <arg choice="plain">
+          <replaceable>userlevel</replaceable>
+        </arg>
+      </arg>
+      <arg choice="opt">-v </arg>
+      <arg choice="opt">-w </arg>
+      <arg choice="opt">-x </arg>
+      <sbr/>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+  <refsect1 id="description">
+    <title>DESCRIPTION</title>
+    <para><emphasis remap="B">Rsyslogd</emphasis>
+is a system utility providing support for message logging.
+Support of both internet and
+unix domain sockets enables this utility to support both local
+and remote logging.</para>
+    <para><emphasis remap="B">Note that this version of rsyslog ships with extensive documentation in html format.</emphasis>
+This is provided in the ./doc subdirectory and probably
+in a separate package if you installed rsyslog via a packaging system.
+To use rsyslog's advanced features, you
+<emphasis remap="B">need</emphasis>
+to look at the html documentation, because the man pages only cover
+basic aspects of operation.
+<emphasis remap="B">For details and configuration examples, see the rsyslog.conf (5)</emphasis>
+<emphasis remap="B">man page and the online documentation at <ulink url="http://www.rsyslog.com/doc">http://www.rsyslog.com/doc</ulink></emphasis></para>
+    <para><citerefentry><refentrytitle>Rsyslogd</refentrytitle><manvolnum>8</manvolnum></citerefentry>
+is derived from the sysklogd package which in turn is derived from the
+stock BSD sources.</para>
+    <para><emphasis remap="B">Rsyslogd</emphasis>
+provides a kind of logging that many modern programs use.  Every logged
+message contains at least a time and a hostname field, normally a
+program name field, too, but that depends on how trusty the logging
+program is. The rsyslog package supports free definition of output formats
+via templates. It also supports precise timestamps and writing directly
+to databases. If the database option is used, tools like phpLogCon can
+be used to view the log data.</para>
+    <para>While the
+<command>rsyslogd</command>
+sources have been heavily modified a couple of notes
+are in order.  First of all there has been a systematic attempt to
+ensure that rsyslogd follows its default, standard BSD behavior. Of course,
+some configuration file changes are necessary in order to support the
+template system. However, rsyslogd should be able to use a standard
+syslog.conf and act like the orginal syslogd. However, an original syslogd
+will not work correctly with a rsyslog-enhanced configuration file. At
+best, it will generate funny looking file names.
+The second important concept to note is that this version of rsyslogd
+interacts transparently with the version of syslog found in the
+standard libraries.  If a binary linked to the standard shared
+libraries fails to function correctly we would like an example of the
+anomalous behavior.</para>
+    <para>The main configuration file
+<filename>/etc/rsyslog.conf</filename>
+or an alternative file, given with the 
+<option>-f</option>
+option, is read at startup.  Any lines that begin with the hash mark
+(&#8220;#&#8221;) and empty lines are ignored.  If an error occurs during parsing
+the error element is ignored. It is tried to parse the rest of the line.</para>
+  </refsect1>
+  <refsect1 id="options">
+    <title>OPTIONS</title>
+    <para><emphasis remap="B">Note that in version 3 of rsyslog a number of command line options</emphasis>
+<emphasis remap="B">have been deprecated and replaced with config file directives. The</emphasis>
+<option>-c option controls the backward compatibility mode in use.</option></para>
+    <variablelist remap="TP">
+      <varlistentry>
+        <term>
+          <option>-A</option>
+        </term>
+        <listitem>
+          <para>When sending UDP messages, there are potentially multiple pathes to
+the target destination. By default,
+<command>rsyslogd</command>
+only sends to the first target it can successfully send to. If -A 
+is given, messages are sent to all targets. This may improve
+reliability, but may also cause message duplicaton. This option
+should enabled only if it is fully understood.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-4</option>
+        </term>
+        <listitem>
+          <para>Causes
+<command>rsyslogd</command>
+to listen to IPv4 addresses only.
+If neither -4 nor -6 is given,
+<command>rsyslogd</command>
+listens to all configured addresses of the system.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-6</option>
+        </term>
+        <listitem>
+          <para>Causes
+<command>rsyslogd</command>
+to listen to IPv6 addresses only.
+If neither -4 nor -6 is given,
+<command>rsyslogd</command>
+listens to all configured addresses of the system.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-c </option>
+          <emphasis remap="I">version</emphasis>
+        </term>
+        <listitem>
+          <para>Selects the desired backward compatibility mode. It must always be the
+first option on the command line, as it influences processing of the
+other options. To use the rsyslog v3 native interface, specify -c3. To
+use compatibility mode , either do not use -c at all or use
+-c&lt;version&gt; where 
+<emphasis remap="I">version</emphasis>
+is the rsyslog version that it shall be
+compatible with. Using -c0 tells rsyslog to be command-line compatible
+to sysklogd, which is the default if -c is not given.
+<emphasis remap="B">Please note that rsyslogd issues warning messages if the -c3</emphasis>
+<emphasis remap="B">command line option is not given.</emphasis>
+This is to alert you that your are running in compatibility
+mode. Compatibility mode interfers with you rsyslog.conf commands and
+may cause some undesired side-effects. It is meant to be used with a
+plain old rsyslog.conf - if you use new features, things become
+messy. So the best advice is to work through this document, convert
+your options and config file and then use rsyslog in native mode. In
+order to aid you in this process, rsyslog logs every
+compatibility-mode config file directive it has generated. So you can
+simply copy them from your logfile and paste them to the config.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-d</option>
+        </term>
+        <listitem>
+          <para>Turns on debug mode.  Using this the daemon will not proceed a 
+<citerefentry><refentrytitle>fork</refentrytitle><manvolnum>2</manvolnum></citerefentry>
+to set itself in the background, but opposite to that stay in the
+foreground and write much debug information on the current tty.  See the
+DEBUGGING section for more information.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-f </option>
+          <emphasis remap="I">config file</emphasis>
+        </term>
+        <listitem>
+          <para>Specify an alternative configuration file instead of
+<filename>/etc/rsyslog.conf</filename>,
+which is the default.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-i </option>
+          <emphasis remap="I">pid file</emphasis>
+        </term>
+        <listitem>
+          <para>Specify an alternative pid file instead of the default one.
+This option must be used if multiple instances of rsyslogd should
+run on a single machine.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-l </option>
+          <emphasis remap="I">hostlist</emphasis>
+        </term>
+        <listitem>
+          <para>Specify a hostname that should be logged only with its simple hostname
+and not the fqdn.  Multiple hosts may be specified using the colon
+(&#8220;:&#8221;) separator.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-n</option>
+        </term>
+        <listitem>
+          <para>Avoid auto-backgrounding.  This is needed especially if the
+<command>rsyslogd</command>
+is started and controlled by
+<citerefentry><refentrytitle>init</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-N level</option>
+        </term>
+        <listitem>
+          <para>Do a coNfig check. Do NOT run in regular mode, just check configuration
+file correctness.
+This option is meant to verify a config file. To do so, run rsyslogd
+interactively in foreground, specifying -f &lt;config-file&gt; and -N level.
+The level argument modifies behaviour. Currently, 0 is the same as
+not specifying the -N option at all (so this makes limited sense) and
+1 actually activates the code. Later, higher levels will mean more
+verbosity (this is a forward-compatibility option).
+<command>rsyslogd</command>
+is started and controlled by
+<citerefentry><refentrytitle>init</refentrytitle><manvolnum>8</manvolnum></citerefentry>.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-q </option>
+          <emphasis remap="I">add hostname if DNS fails during ACL processing</emphasis>
+        </term>
+        <listitem>
+          <para>During ACL processing, hostnames are resolved to IP addreses for
+performance reasons. If DNS fails during that process, the hostname
+is added as wildcard text, which results in proper, but somewhat
+slower operation once DNS is up again.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-Q </option>
+          <emphasis remap="I">do not resolve hostnames during ACL processing</emphasis>
+        </term>
+        <listitem>
+          <para>Do not resolve hostnames to IP addresses during ACL processing.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-s </option>
+          <emphasis remap="I">domainlist</emphasis>
+        </term>
+        <listitem>
+          <para>Specify a domainname that should be stripped off before
+logging.  Multiple domains may be specified using the colon (&#8220;:&#8221;)
+separator.
+Please be advised that no sub-domains may be specified but only entire
+domains.  For example if
+<option>-s north.de</option>
+is specified and the host logging resolves to satu.infodrom.north.de
+no domain would be cut, you will have to specify two domains like:
+<option>-s north.de:infodrom.north.de</option>.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-u </option>
+          <emphasis remap="I">userlevel</emphasis>
+        </term>
+        <listitem>
+          <para>This is a "catch all" option for some very seldomly-used user settings.
+The "userlevel" variable selects multiple things. Add the specific values
+to get the combined effect of them.
+A value of 1 prevents rsyslogd from parsing hostnames and tags inside
+messages.
+A value of 2 prevents rsyslogd from changing to the root directory. This
+is almost never a good idea in production use. This option was introduced
+in support of the internal testbed.
+To combine these two features, use a userlevel of 3 (1+2). Whenever you use
+an -u option, make sure you really understand what you do and why you do it.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-v</option>
+        </term>
+        <listitem>
+          <para>Print version and exit.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-w</option>
+        </term>
+        <listitem>
+          <para>Supress warnings issued when messages are received from non-authorized
+machines (those, that are in no AllowedSender list).</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-x</option>
+        </term>
+        <listitem>
+          <para>Disable DNS for remote messages.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+  <refsect1 id="signals">
+    <title>SIGNALS</title>
+    <para><emphasis remap="B">Rsyslogd</emphasis>
+reacts to a set of signals.  You may easily send a signal to
+<command>rsyslogd</command>
+using the following:</para>
+    <literallayout remap=".nf">
+kill -SIGNAL $(cat /var/run/syslogd.pid)
+</literallayout>
+    <!-- .fi -->
+    <para>Note that -SIGNAL must be replaced with the actual signal
+you are trying to send, e.g. with HUP. So it then becomes:</para>
+    <literallayout remap=".nf">
+kill -HUP $(cat /var/run/syslogd.pid)
+</literallayout>
+    <!-- .fi -->
+    <variablelist remap="TP">
+      <varlistentry>
+        <term>
+          <emphasis remap="B">HUP</emphasis>
+        </term>
+        <listitem>
+          <para>This lets
+<command>rsyslogd</command>
+perform a re-initialization.  All open files are closed, the
+configuration file (default is 
+<filename>/etc/rsyslog.conf</filename>)
+will be reread and the
+<citerefentry><refentrytitle>rsyslog</refentrytitle><manvolnum>3</manvolnum></citerefentry>
+facility is started again.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <emphasis remap="B">TERM , INT , QUIT</emphasis>
+        </term>
+        <listitem>
+          <para><emphasis remap="B">Rsyslogd</emphasis>
+will die.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <emphasis remap="B">USR1</emphasis>
+        </term>
+        <listitem>
+          <para>Switch debugging on/off.  This option can only be used if
+<command>rsyslogd</command>
+is started with the
+<option>-d</option>
+debug option.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <emphasis remap="B">CHLD</emphasis>
+        </term>
+        <listitem>
+          <para>Wait for childs if some were born, because of wall'ing messages.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+  <refsect1 id="security_threats">
+    <title>SECURITY THREATS</title>
+    <para>There is the potential for the rsyslogd daemon to be
+used as a conduit for a denial of service attack.
+A rogue program(mer) could very easily flood the rsyslogd daemon with
+syslog messages resulting in the log files consuming all the remaining
+space on the filesystem.  Activating logging over the inet domain
+sockets will of course expose a system to risks outside of programs or
+individuals on the local machine.</para>
+    <para>There are a number of methods of protecting a machine:</para>
+    <variablelist remap="IP">
+      <varlistentry>
+        <term>1.</term>
+        <listitem>
+          <para>Implement kernel firewalling to limit which hosts or networks have
+access to the 514/UDP socket.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>2.</term>
+        <listitem>
+          <para>Logging can be directed to an isolated or non-root filesystem which,
+if filled, will not impair the machine.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>3.</term>
+        <listitem>
+          <para>The ext2 filesystem can be used which can be configured to limit a
+certain percentage of a filesystem to usage by root only.  <emphasis remap="B">NOTE</emphasis>
+that this will require rsyslogd to be run as a non-root process.
+<emphasis remap="B">ALSO NOTE</emphasis> that this will prevent usage of remote logging on the default port since
+rsyslogd will be unable to bind to the 514/UDP socket.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>4.</term>
+        <listitem>
+          <para>Disabling inet domain sockets will limit risk to the local machine.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <refsect2 id="message_replay_and_spoofing">
+      <title>Message replay and spoofing</title>
+      <para>If remote logging is enabled, messages can easily be spoofed and replayed.
+As the messages are transmitted in clear-text, an attacker might use
+the information obtained from the packets for malicious things. Also, an
+attacker might replay recorded messages or spoof a sender's IP address,
+which could lead to a wrong perception of system activity. These can
+be prevented by using GSS-API authentication and encryption. Be sure
+to think about syslog network security before enabling it.</para>
+    </refsect2>
+  </refsect1>
+  <refsect1 id="debugging">
+    <title>DEBUGGING</title>
+    <para>When debugging is turned on using
+<option>-d</option>
+option then
+<command>rsyslogd</command>
+will be very verbose by writing much of what it does on stdout.</para>
+  </refsect1>
+  <refsect1 id="files">
+    <title>FILES</title>
+    <!-- .PD 0 -->
+    <variablelist remap="TP">
+      <varlistentry>
+        <term>
+          <filename>/etc/rsyslog.conf</filename>
+        </term>
+        <listitem>
+          <para>Configuration file for
+<command>rsyslogd</command>.
+See
+<citerefentry><refentrytitle>rsyslog.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>
+for exact information.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <filename>/dev/log</filename>
+        </term>
+        <listitem>
+          <para>The Unix domain socket to from where local syslog messages are read.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <filename>/var/run/rsyslogd.pid</filename>
+        </term>
+        <listitem>
+          <para>The file containing the process id of 
+<command>rsyslogd</command>.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <emphasis remap="I">prefix/lib/rsyslog</emphasis>
+        </term>
+        <listitem>
+          <para>Default directory for
+<command>rsyslogd</command>
+modules. The
+<emphasis remap="I">prefix</emphasis>
+is specified during compilation (e.g. /usr/local).</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+  <refsect1 id="environment">
+    <title>ENVIRONMENT</title>
+    <variablelist remap="TP">
+      <varlistentry>
+        <term>
+          <emphasis remap="B">RSYSLOG_DEBUG</emphasis>
+        </term>
+        <listitem>
+          <para>Controls runtime debug support.It contains an option string with the
+following options possible (all are case insensitive):</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <variablelist remap="IP">
+      <varlistentry>
+        <term>LogFuncFlow</term>
+        <listitem>
+          <para>Print out the logical flow of functions (entering and exiting them)</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>FileTrace</term>
+        <listitem>
+          <para>Specifies which files to trace LogFuncFlow. If not set (the
+default), a LogFuncFlow trace is provided for all files. Set to
+limit it to the files specified.FileTrace may be specified multiple
+times, one file each (e.g. export RSYSLOG_DEBUG="LogFuncFlow
+FileTrace=vm.c FileTrace=expr.c"</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>PrintFuncDB</term>
+        <listitem>
+          <para>Print the content of the debug function database whenever debug
+information is printed (e.g. abort case)!</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>PrintAllDebugInfoOnExit</term>
+        <listitem>
+          <para>Print all debug information immediately before rsyslogd exits
+(currently not implemented!)</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>PrintMutexAction</term>
+        <listitem>
+          <para>Print mutex action as it happens. Useful for finding deadlocks and
+such.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>NoLogTimeStamp</term>
+        <listitem>
+          <para>Do not prefix log lines with a timestamp (default is to do that).</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>NoStdOut</term>
+        <listitem>
+          <para>Do not emit debug messages to stdout. If RSYSLOG_DEBUGLOG is not
+set, this means no messages will be displayed at all.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Help</term>
+        <listitem>
+          <para>Display a very short list of commands - hopefully a life saver if
+you can't access the documentation...</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+    <variablelist remap="TP">
+      <varlistentry>
+        <term>
+          <emphasis remap="B">RSYSLOG_DEBUGLOG</emphasis>
+        </term>
+        <listitem>
+          <para>If set, writes (allmost) all debug message to the specified log file
+in addition to stdout.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <emphasis remap="B">RSYSLOG_MODDIR</emphasis>
+        </term>
+        <listitem>
+          <para>Provides the default directory in which loadable modules reside.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+  <refsect1 id="bugs">
+    <title>BUGS</title>
+    <para>Please review the file BUGS for up-to-date information on known
+bugs and annouyances.</para>
+  </refsect1>
+  <refsect1 id="further_information">
+    <title>Further Information</title>
+    <para>Please visit
+<emphasis remap="B"><ulink url="http://www.rsyslog.com/doc">http://www.rsyslog.com/doc</ulink></emphasis>
+for additional information, tutorials and a support forum.</para>
+  </refsect1>
+  <refsect1 id="see_also">
+    <title>SEE ALSO</title>
+    <para><citerefentry><refentrytitle>rsyslog.conf</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
+<citerefentry><refentrytitle>logger</refentrytitle><manvolnum>1</manvolnum></citerefentry>,
+<citerefentry><refentrytitle>syslog</refentrytitle><manvolnum>2</manvolnum></citerefentry>,
+<citerefentry><refentrytitle>syslog</refentrytitle><manvolnum>3</manvolnum></citerefentry>,
+<citerefentry><refentrytitle>services</refentrytitle><manvolnum>5</manvolnum></citerefentry>,
+<citerefentry><refentrytitle>savelog</refentrytitle><manvolnum>8</manvolnum></citerefentry></para>
+  </refsect1>
+  <refsect1 id="collaborators">
+    <title>COLLABORATORS</title>
+    <para><command>rsyslogd</command>
+is derived from sysklogd sources, which in turn was taken from
+the BSD sources. Special thanks to Greg Wettstein (greg@wind.enjellic.com)
+and Martin Schulze (joey@linux.de) for the fine sysklogd package.</para>
+    <!-- .PD 0 -->
+    <variablelist remap="TP">
+      <varlistentry>
+        <term>Rainer Gerhards</term>
+        <term>Adiscon GmbH</term>
+        <term>Grossrinderfeld, Germany</term>
+        <term>rgerhards@adiscon.com</term>
+        <listitem>
+          <!-- .PD -->
+          <para/>
+          <!-- FIXME: blank list item -->
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+</refentry>
