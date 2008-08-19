@@ -1,6 +1,7 @@
 sbin_PROGRAMS =
 pkglib_LTLIBRARIES = 
 
+ACLOCAL_AMFLAGS	= -I m4
 
 if ENABLE_INET
 pkglib_LTLIBRARIES += lmtcpsrv.la lmtcpclt.la
