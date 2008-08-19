@@ -661,6 +661,7 @@ AC_CONFIG_FILES([Makefile \
 		doc/Makefile \
 		man/Makefile \
 		man/C/Makefile \
+		man/ja/Makefile \
 		plugins/imudp/Makefile \
 		plugins/imtcp/Makefile \
 		plugins/im3195/Makefile \
