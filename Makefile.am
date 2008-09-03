@@ -50,7 +50,7 @@ EXTRA_DIST = \
 	contrib/gnutls/cert.pem \
 	contrib/gnutls/key.pem
 
-SUBDIRS = doc runtime . plugins/immark plugins/imuxsock plugins/imtcp plugins/imudp plugins/omtesting
+SUBDIRS = doc man runtime . plugins/immark plugins/imuxsock plugins/imtcp plugins/imudp plugins/omtesting
 
 if ENABLE_RSYSLOGD
 SUBDIRS += tools

@@ -1,5 +1,4 @@
 sbin_PROGRAMS =
-man_MANS = rsyslogd.8 rsyslog.conf.5 
 
 sbin_PROGRAMS += rsyslogd
 rsyslogd_SOURCES = \
@@ -29,5 +28,3 @@ if ENABLE_DIAGTOOLS
 sbin_PROGRAMS += rsyslog_diag_hostname
 rsyslog_diag_hostname_SOURCES = gethostn.c
 endif
-
-EXTRA_DIST = $(man_MANS)
