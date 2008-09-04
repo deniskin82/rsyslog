@@ -718,5 +718,6 @@ echo "Runtime Instrumentation enabled:          $enable_rtinst"
 echo "Diagnostic tools enabled:                 $enable_diagtools"
 echo "valgrind support settings enabled:        $enable_valgrind"
 echo "rsyslog runtime will be built:            $enable_rsyslogrt"
+echo "man pages will be regenerated:            $enable_regenerate_man"
 echo "rsyslogd will be built:                   $enable_rsyslogd"
 
