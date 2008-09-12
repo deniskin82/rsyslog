@@ -1327,7 +1327,6 @@ static int srSLMGParseTIMESTAMP3164(struct syslogTime *pTime, unsigned char* psz
 	pTime->second = srSLMGParseInt32(&pszTS);
 	if(pTime->second < 0 || pTime->second > 60)
 		return FALSE;
-	if(*pszTS++ != ':')
 
 	/* OK, we actually have a 3164 timestamp, so let's indicate this
 	 * and fill the rest of the properties. */
