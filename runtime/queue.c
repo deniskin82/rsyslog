@@ -115,7 +115,7 @@ static inline rsRetVal queueAdviseMaxWorkers(queue_t *pThis)
 			} else {
 				iMaxWorkers = queueGetOverallQueueSize(pThis) / pThis->iMinMsgsPerWrkr + 1;
 			}
-			wtpAdviseMaxWorkers(pThis->pWtpReg, iMaxWorkers); /* disk queues have always one worker */
+			wtpAdviseMaxWorkers(pThis->pWtpReg, iMaxWorkers);
 		}
 	}
 
@@ -1422,6 +1422,8 @@ queueDequeueConsumable(queue_t *pThis, wti_t *pWti, int iCancelStateSave)
 	 * we have someone waiting for the condition (or only when we hit the watermark right
 	 * on the nail [exact value]) -- rgerhards, 2008-03-14
 	 */
+#warning "broadcasts need to be re-enabled"
+#if 0 
 	if(iQueueSize < pThis->iFullDlyMrk) {
 		pthread_cond_broadcast(&pThis->belowFullDlyWtrMrk);
 	}
@@ -1429,6 +1431,7 @@ queueDequeueConsumable(queue_t *pThis, wti_t *pWti, int iCancelStateSave)
 	if(iQueueSize < pThis->iLightDlyMrk) {
 		pthread_cond_broadcast(&pThis->belowLightDlyWtrMrk);
 	}
+#endif
 
 	/* rgerhards, 2008-09-30: I reversed the order of cond_signal und mutex_unlock
 	 * as of the pthreads recommendation on predictable scheduling behaviour. I don't see

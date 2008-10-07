@@ -124,7 +124,17 @@ struct msg {
 /* function prototypes
  */
 PROTOTYPEObjClassInit(msg);
-char* getProgramName(msg_t*);
+
+int getProgramNameLen(msg_t *pM);
+char *getProgramName(msg_t *pM);
+char *getPROCID(msg_t *pM);
+char *getAPPNAME(msg_t *pM);
+
+void MsgLockMsg(msg_t *pMsg);
+void MsgUnlockMsg(msg_t *pMsg);
+
+int getMSGLen(msg_t *pM);
+char *getMSG(msg_t *pM);
 rsRetVal msgConstruct(msg_t **ppThis);
 rsRetVal msgConstructWithTime(msg_t **ppThis, struct syslogTime *stTime, time_t ttGenTime);
 rsRetVal msgDestruct(msg_t **ppM);
@@ -132,37 +142,18 @@ msg_t* MsgDup(msg_t* pOld);
 msg_t *MsgAddRef(msg_t *pM);
 void setProtocolVersion(msg_t *pM, int iNewVersion);
 int getProtocolVersion(msg_t *pM);
-char *getProtocolVersionString(msg_t *pM);
-int getMSGLen(msg_t *pM);
-char *getRawMsg(msg_t *pM);
-char *getUxTradMsg(msg_t *pM);
-char *getMSG(msg_t *pM);
-char *getPRI(msg_t *pM);
-int getPRIi(msg_t *pM);
-char *getTimeReported(msg_t *pM, enum tplFormatTypes eFmt);
-char *getTimeGenerated(msg_t *pM, enum tplFormatTypes eFmt);
-char *getSeverity(msg_t *pM);
-char *getSeverityStr(msg_t *pM);
-char *getFacility(msg_t *pM);
-char *getFacilityStr(msg_t *pM);
 void MsgSetInputName(msg_t *pMsg, char*);
 rsRetVal MsgSetAPPNAME(msg_t *pMsg, char* pszAPPNAME);
-char *getAPPNAME(msg_t *pM);
 rsRetVal MsgSetPROCID(msg_t *pMsg, char* pszPROCID);
-int getPROCIDLen(msg_t *pM);
-char *getPROCID(msg_t *pM);
 rsRetVal MsgSetMSGID(msg_t *pMsg, char* pszMSGID);
 void MsgAssignTAG(msg_t *pMsg, uchar *pBuf);
 void MsgSetTAG(msg_t *pMsg, char* pszTAG);
 rsRetVal MsgSetFlowControlType(msg_t *pMsg, flowControl_t eFlowCtl);
-char *getTAG(msg_t *pM);
 int getHOSTNAMELen(msg_t *pM);
 char *getHOSTNAME(msg_t *pM);
 char *getRcvFrom(msg_t *pM);
 rsRetVal MsgSetStructuredData(msg_t *pMsg, char* pszStrucData);
 char *getStructuredData(msg_t *pM);
-int getProgramNameLen(msg_t *pM);
-char *getProgramName(msg_t *pM);
 void MsgSetRcvFrom(msg_t *pMsg, char* pszRcvFrom);
 rsRetVal MsgSetRcvFromIP(msg_t *pMsg, uchar* pszRcvFromIP);
 void MsgAssignHOSTNAME(msg_t *pMsg, char *pBuf);

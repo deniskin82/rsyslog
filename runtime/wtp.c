@@ -156,7 +156,10 @@ wtpWakeupWrkr(wtp_t *pThis)
 
 	/* TODO; mutex? I think not needed, as we do not need predictable exec order -- rgerhards, 2008-01-28 */
 	ISOBJ_TYPE_assert(pThis, wtp);
-	pthread_cond_signal(pThis->pcondBusy);
+	if(pThis->bReqWakeup == 1) {
+		pThis->bReqWakeup = 0;
+		pthread_cond_signal(pThis->pcondBusy);
+	}
 	RETiRet;
 }
 

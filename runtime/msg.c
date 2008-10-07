@@ -102,6 +102,19 @@ static syslogCODE rs_facilitynames[] =
   };
 
 /* some forward declarations */
+static char *getPRI(msg_t *pM);
+static int getPRIi(msg_t *pM);
+static char *getTimeReported(msg_t *pM, enum tplFormatTypes eFmt);
+static char *getProtocolVersionString(msg_t *pM);
+static char *getRawMsg(msg_t *pM);
+static char *getUxTradMsg(msg_t *pM);
+static char *getTimeGenerated(msg_t *pM, enum tplFormatTypes eFmt);
+static char *getSeverity(msg_t *pM);
+static char *getSeverityStr(msg_t *pM);
+static char *getFacility(msg_t *pM);
+static char *getFacilityStr(msg_t *pM);
+static int getPROCIDLen(msg_t *pM);
+static char *getTAG(msg_t *pM);
 static int getAPPNAMELen(msg_t *pM);
 
 /* The following functions will support advanced output module
@@ -143,6 +156,22 @@ void (*funcMsgPrepareEnqueue)(msg_t *pMsg);
 #define MsgLock(pMsg) 	{dbgprintf("MsgLock line %d\n - ", __LINE__); funcLock(pMsg);; }
 #define MsgUnlock(pMsg) {dbgprintf("MsgUnlock line %d - ", __LINE__); funcUnlock(pMsg); }
 #endif
+
+
+/* support external locking of the msg object for doing extended
+ * access which requires locking. Cuts down cost of locking calls
+ * dramatically for the property replacer.
+ * rgerhards, 2008-10-07
+ */
+void MsgLockMsg(msg_t *pMsg)
+{
+	MsgLock(pMsg);
+}
+void MsgUnlockMsg(msg_t *pMsg)
+{
+	MsgUnlock(pMsg);
+}
+
 
 /* the next function is a dummy to be used by the looking functions
  * when the class is not yet running in an environment where locking
@@ -742,14 +771,14 @@ char *getMSG(msg_t *pM)
 
 
 /* Get PRI value in text form */
-char *getPRI(msg_t *pM)
+static char *getPRI(msg_t *pM)
 {
 	int pri;
 
 	if(pM == NULL)
 		return "";
 
-	MsgLock(pM);
+	//MsgLock(pM);
 	if(pM->pszPRI == NULL) {
 		/* OK, we need to construct it...  we use a 5 byte buffer - as of 
 		 * RFC 3164, it can't be longer. Should it still be, snprintf will truncate...
@@ -762,21 +791,21 @@ char *getPRI(msg_t *pM)
 		if((pM->pszPRI = malloc(5)) == NULL) return "";
 		pM->iLenPRI = snprintf((char*)pM->pszPRI, 5, "%d", pri);
 	}
-	MsgUnlock(pM);
+	//MsgUnlock(pM);
 
 	return (char*)pM->pszPRI;
 }
 
 
 /* Get PRI value as integer */
-int getPRIi(msg_t *pM)
+static int getPRIi(msg_t *pM)
 {
 	assert(pM != NULL);
 	return (pM->iFacility << 3) + (pM->iSeverity);
 }
 
 
-char *getTimeReported(msg_t *pM, enum tplFormatTypes eFmt)
+static char *getTimeReported(msg_t *pM, enum tplFormatTypes eFmt)
 {
 	BEGINfunc
 	if(pM == NULL)
@@ -784,77 +813,78 @@ char *getTimeReported(msg_t *pM, enum tplFormatTypes eFmt)
 
 	switch(eFmt) {
 	case tplFmtDefault:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszTIMESTAMP3164 == NULL) {
 			if((pM->pszTIMESTAMP3164 = malloc(16)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return "";
 			}
 			datetime.formatTimestamp3164(&pM->tTIMESTAMP, pM->pszTIMESTAMP3164, 16);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszTIMESTAMP3164);
 	case tplFmtMySQLDate:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszTIMESTAMP_MySQL == NULL) {
 			if((pM->pszTIMESTAMP_MySQL = malloc(15)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return "";
 			}
 			datetime.formatTimestampToMySQL(&pM->tTIMESTAMP, pM->pszTIMESTAMP_MySQL, 15);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszTIMESTAMP_MySQL);
         case tplFmtPgSQLDate:
-                MsgLock(pM);
+                ////MsgLock(pM);
                 if(pM->pszTIMESTAMP_PgSQL == NULL) {
                         if((pM->pszTIMESTAMP_PgSQL = malloc(21)) == NULL) {
-                                MsgUnlock(pM);
+                                //MsgUnlock(pM);
                                 return "";
                         }
                         datetime.formatTimestampToPgSQL(&pM->tTIMESTAMP, pM->pszTIMESTAMP_PgSQL, 21);
                 }
-                MsgUnlock(pM);
+                //MsgUnlock(pM);
                 return(pM->pszTIMESTAMP_PgSQL);
 	case tplFmtRFC3164Date:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszTIMESTAMP3164 == NULL) {
 			if((pM->pszTIMESTAMP3164 = malloc(16)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return "";
 			}
 			datetime.formatTimestamp3164(&pM->tTIMESTAMP, pM->pszTIMESTAMP3164, 16);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszTIMESTAMP3164);
 	case tplFmtRFC3339Date:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszTIMESTAMP3339 == NULL) {
 			if((pM->pszTIMESTAMP3339 = malloc(33)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return ""; /* TODO: check this: can it cause a free() of constant memory?) */
 			}
 			datetime.formatTimestamp3339(&pM->tTIMESTAMP, pM->pszTIMESTAMP3339, 33);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszTIMESTAMP3339);
 	case tplFmtSecFrac:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszTIMESTAMP_SecFrac == NULL) {
 			if((pM->pszTIMESTAMP_SecFrac = malloc(10)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return ""; /* TODO: check this: can it cause a free() of constant memory?) */
 			}
 			datetime.formatTimestampSecFrac(&pM->tTIMESTAMP, pM->pszTIMESTAMP_SecFrac, 10);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszTIMESTAMP_SecFrac);
 	}
 	ENDfunc
 	return "INVALID eFmt OPTION!";
 }
 
-char *getTimeGenerated(msg_t *pM, enum tplFormatTypes eFmt)
+
+static char *getTimeGenerated(msg_t *pM, enum tplFormatTypes eFmt)
 {
 	BEGINfunc
 	if(pM == NULL)
@@ -862,70 +892,70 @@ char *getTimeGenerated(msg_t *pM, enum tplFormatTypes eFmt)
 
 	switch(eFmt) {
 	case tplFmtDefault:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszRcvdAt3164 == NULL) {
 			if((pM->pszRcvdAt3164 = malloc(16)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return "";
 			}
 			datetime.formatTimestamp3164(&pM->tRcvdAt, pM->pszRcvdAt3164, 16);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszRcvdAt3164);
 	case tplFmtMySQLDate:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszRcvdAt_MySQL == NULL) {
 			if((pM->pszRcvdAt_MySQL = malloc(15)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return "";
 			}
 			datetime.formatTimestampToMySQL(&pM->tRcvdAt, pM->pszRcvdAt_MySQL, 15);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszRcvdAt_MySQL);
         case tplFmtPgSQLDate:
-                MsgLock(pM);
+                //MsgLock(pM);
                 if(pM->pszRcvdAt_PgSQL == NULL) {
                         if((pM->pszRcvdAt_PgSQL = malloc(21)) == NULL) {
-                                MsgUnlock(pM);
+                                //MsgUnlock(pM);
                                 return "";
                         }
                         datetime.formatTimestampToPgSQL(&pM->tRcvdAt, pM->pszRcvdAt_PgSQL, 21);
                 }
-                MsgUnlock(pM);
+                //MsgUnlock(pM);
                 return(pM->pszRcvdAt_PgSQL);
 	case tplFmtRFC3164Date:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszRcvdAt3164 == NULL) {
 			if((pM->pszRcvdAt3164 = malloc(16)) == NULL) {
-					MsgUnlock(pM);
+					//MsgUnlock(pM);
 					return "";
 				}
 			datetime.formatTimestamp3164(&pM->tRcvdAt, pM->pszRcvdAt3164, 16);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszRcvdAt3164);
 	case tplFmtRFC3339Date:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszRcvdAt3339 == NULL) {
 			if((pM->pszRcvdAt3339 = malloc(33)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return "";
 			}
 			datetime.formatTimestamp3339(&pM->tRcvdAt, pM->pszRcvdAt3339, 33);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszRcvdAt3339);
 	case tplFmtSecFrac:
-		MsgLock(pM);
+		//MsgLock(pM);
 		if(pM->pszRcvdAt_SecFrac == NULL) {
 			if((pM->pszRcvdAt_SecFrac = malloc(10)) == NULL) {
-				MsgUnlock(pM);
+				//MsgUnlock(pM);
 				return ""; /* TODO: check this: can it cause a free() of constant memory?) */
 			}
 			datetime.formatTimestampSecFrac(&pM->tRcvdAt, pM->pszRcvdAt_SecFrac, 10);
 		}
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 		return(pM->pszRcvdAt_SecFrac);
 	}
 	ENDfunc
@@ -933,24 +963,24 @@ char *getTimeGenerated(msg_t *pM, enum tplFormatTypes eFmt)
 }
 
 
-char *getSeverity(msg_t *pM)
+static char *getSeverity(msg_t *pM)
 {
 	if(pM == NULL)
 		return "";
 
-	MsgLock(pM);
+	//MsgLock(pM);
 	if(pM->pszSeverity == NULL) {
 		/* we use a 2 byte buffer - can only be one digit */
-		if((pM->pszSeverity = malloc(2)) == NULL) { MsgUnlock(pM) ; return ""; }
+		if((pM->pszSeverity = malloc(2)) == NULL) { /*MsgUnlock(pM) ;*/ return ""; }
 		pM->iLenSeverity =
 		   snprintf((char*)pM->pszSeverity, 2, "%d", pM->iSeverity);
 	}
-	MsgUnlock(pM);
+	//MsgUnlock(pM);
 	return((char*)pM->pszSeverity);
 }
 
 
-char *getSeverityStr(msg_t *pM)
+static char *getSeverityStr(msg_t *pM)
 {
 	syslogCODE *c;
 	int val;
@@ -959,7 +989,7 @@ char *getSeverityStr(msg_t *pM)
 	if(pM == NULL)
 		return "";
 
-	MsgLock(pM);
+	//MsgLock(pM);
 	if(pM->pszSeverityStr == NULL) {
 		for(c = rs_prioritynames, val = pM->iSeverity; c->c_name; c++)
 			if(c->c_val == val) {
@@ -968,38 +998,38 @@ char *getSeverityStr(msg_t *pM)
 			}
 		if(name == NULL) {
 			/* we use a 2 byte buffer - can only be one digit */
-			if((pM->pszSeverityStr = malloc(2)) == NULL) { MsgUnlock(pM) ; return ""; }
+			if((pM->pszSeverityStr = malloc(2)) == NULL) { /*MsgUnlock(pM) ;*/ return ""; }
 			pM->iLenSeverityStr =
 				snprintf((char*)pM->pszSeverityStr, 2, "%d", pM->iSeverity);
 		} else {
-			if((pM->pszSeverityStr = (uchar*) strdup(name)) == NULL) { MsgUnlock(pM) ; return ""; }
+			if((pM->pszSeverityStr = (uchar*) strdup(name)) == NULL) { /*MsgUnlock(pM);*/ return ""; }
 			pM->iLenSeverityStr = strlen((char*)name);
 		}
 	}
-	MsgUnlock(pM);
+	//MsgUnlock(pM);
 	return((char*)pM->pszSeverityStr);
 }
 
-char *getFacility(msg_t *pM)
+static char *getFacility(msg_t *pM)
 {
 	if(pM == NULL)
 		return "";
 
-	MsgLock(pM);
+	//MsgLock(pM);
 	if(pM->pszFacility == NULL) {
 		/* we use a 12 byte buffer - as of 
 		 * syslog-protocol, facility can go
 		 * up to 2^32 -1
 		 */
-		if((pM->pszFacility = malloc(12)) == NULL) { MsgUnlock(pM) ; return ""; }
+		if((pM->pszFacility = malloc(12)) == NULL) { /*MsgUnlock(pM);*/ return ""; }
 		pM->iLenFacility =
 		   snprintf((char*)pM->pszFacility, 12, "%d", pM->iFacility);
 	}
-	MsgUnlock(pM);
+	//MsgUnlock(pM);
 	return((char*)pM->pszFacility);
 }
 
-char *getFacilityStr(msg_t *pM)
+static char *getFacilityStr(msg_t *pM)
 {
         syslogCODE *c;
         int val;
@@ -1008,7 +1038,7 @@ char *getFacilityStr(msg_t *pM)
         if(pM == NULL)
                 return "";
 
-	MsgLock(pM);
+	//MsgLock(pM);
         if(pM->pszFacilityStr == NULL) {
                 for(c = rs_facilitynames, val = pM->iFacility << 3; c->c_name; c++)
                         if(c->c_val == val) {
@@ -1020,15 +1050,15 @@ char *getFacilityStr(msg_t *pM)
 			 * syslog-protocol, facility can go
 			 * up to 2^32 -1
 			 */
-			if((pM->pszFacilityStr = malloc(12)) == NULL) { MsgUnlock(pM) ; return ""; }
+			if((pM->pszFacilityStr = malloc(12)) == NULL) { /*MsgUnlock(pM);*/ return ""; }
 			pM->iLenFacilityStr =
 				snprintf((char*)pM->pszFacilityStr, 12, "%d", val >> 3);
                 } else {
-                        if((pM->pszFacilityStr = (uchar*)strdup(name)) == NULL) { MsgUnlock(pM) ; return ""; }
+                        if((pM->pszFacilityStr = (uchar*)strdup(name)) == NULL) { /*MsgUnlock(pM) ;*/ return ""; }
                         pM->iLenFacilityStr = strlen((char*)name);
                 }
         }
-	MsgUnlock(pM);
+	//MsgUnlock(pM);
         return((char*)pM->pszFacilityStr);
 }
 
@@ -1106,13 +1136,13 @@ finalize_it:
 
 /* rgerhards, 2005-11-24
  */
-int getPROCIDLen(msg_t *pM)
+static int getPROCIDLen(msg_t *pM)
 {
 	assert(pM != NULL);
-	MsgLock(pM);
+	//MsgLock(pM);
 	if(pM->pCSPROCID == NULL)
 		aquirePROCIDFromTAG(pM);
-	MsgUnlock(pM);
+	//MsgUnlock(pM);
 	return (pM->pCSPROCID == NULL) ? 1 : rsCStrLen(pM->pCSPROCID);
 }
 
@@ -1229,36 +1259,20 @@ static void tryEmulateTAG(msg_t *pM)
 }
 
 
-#if 0 /* This method is currently not called, be we like to preserve it */
-static int getTAGLen(msg_t *pM)
-{
-	if(pM == NULL)
-		return 0;
-	else {
-		tryEmulateTAG(pM);
-		if(pM->pszTAG == NULL)
-			return 0;
-		else
-			return pM->iLenTAG;
-	}
-}
-#endif
-
-
-char *getTAG(msg_t *pM)
+static char *getTAG(msg_t *pM)
 {
 	char *ret;
 
 	if(pM == NULL)
 		ret = "";
 	else {
-		MsgLock(pM);
+		//MsgLock(pM);
 		tryEmulateTAG(pM);
 		if(pM->pszTAG == NULL)
 			ret = "";
 		else
 			ret = (char*) pM->pszTAG;
-		MsgUnlock(pM);
+		//MsgUnlock(pM);
 	}
 	return(ret);
 }

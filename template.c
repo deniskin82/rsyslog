@@ -76,6 +76,7 @@ rsRetVal tplToString(struct template *pTpl, msg_t *pMsg, uchar** ppSz)
 	unsigned short bMustBeFreed;
 	uchar *pVal;
 	size_t iLenVal;
+	int bMsgLocked = 0;
 
 	assert(pTpl != NULL);
 	assert(pMsg != NULL);
@@ -89,6 +90,10 @@ rsRetVal tplToString(struct template *pTpl, msg_t *pMsg, uchar** ppSz)
 	CHKiRet(rsCStrConstruct(&pCStr));
 
 	pTpe = pTpl->pEntryRoot;
+
+	/* we lock the msg object, this saves us doing locks for each property */
+	bMsgLocked = 1;
+	MsgLockMsg(pMsg);
 	while(pTpe != NULL) {
 		if(pTpe->eEntryType == CONSTANT) {
 			CHKiRet_Hdlr(rsCStrAppendStrWithLen(pCStr, 
@@ -128,6 +133,9 @@ rsRetVal tplToString(struct template *pTpl, msg_t *pMsg, uchar** ppSz)
 		pTpe = pTpe->pNext;
 	}
 
+	MsgUnlockMsg(pMsg);
+	bMsgLocked = 0;
+
 	/* we are done with the template, now let's convert the result into a
 	 * "real" (usable) string and discard the helper structures.
 	 */
@@ -135,6 +143,9 @@ rsRetVal tplToString(struct template *pTpl, msg_t *pMsg, uchar** ppSz)
 	CHKiRet(rsCStrConvSzStrAndDestruct(pCStr, &pVal, 0));
 	
 finalize_it:
+	if(bMsgLocked)
+		MsgUnlockMsg(pMsg);
+
 	*ppSz = (iRet == RS_RET_OK) ? pVal : NULL;
 
 	RETiRet;

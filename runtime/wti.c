@@ -396,8 +396,10 @@ wtiWorker(wti_t *pThis)
 
 			if(pWtp->toWrkShutdown == -1) {
 				/* never shut down any started worker */
+pWtp->bReqWakeup = 1; // TODO: this is unreliable
 				d_pthread_cond_wait(pWtp->pcondBusy, pWtp->pmutUsr);
 			} else {
+pWtp->bReqWakeup = 1;
 				timeoutComp(&t, pWtp->toWrkShutdown);/* get absolute timeout */
 				if(d_pthread_cond_timedwait(pWtp->pcondBusy, pWtp->pmutUsr, &t) != 0) {
 					dbgprintf("%s: inactivity timeout, worker terminating...\n", wtiGetDbgHdr(pThis));
