@@ -2090,6 +2090,32 @@ finalize_it:
 
 /* enqueue a new user data element
  * Enqueues the new element and awakes worker thread.
+ *
+ * This function also handles flow control:
+ * There are two different flow control mechanisms: basic and advanced flow control.
+ * Basic flow control has always been implemented and protects the queue structures
+ * in that it makes sure no more data is enqueued than the queue is configured to
+ * support. Enhanced flow control is being added today. There are some sources which
+ * can easily be stopped, e.g. a file reader. This is the case because it is unlikely
+ * that blocking those sources will have negative effects (after all, the file is
+ * continued to be written). Other sources can somewhat be blocked (e.g. the kernel
+ * log reader or the local log stream reader): in general, nothing is lost if messages
+ * from these sources are not picked up immediately. HOWEVER, they can not block for
+ * an extended period of time, as this either causes message loss or - even worse - some
+ * other bad effects (e.g. unresponsive system in respect to the main system log socket).
+ * Finally, there are some (few) sources which can not be blocked at all. UDP syslog is
+ * a prime example. If a UDP message is not received, it is simply lost. So we can't
+ * do anything against UDP sockets that come in too fast. The core idea of advanced
+ * flow control is that we take into account the different natures of the sources and
+ * select flow control mechanisms that fit these needs. This also means, in the end
+ * result, that non-blockable sources like UDP syslog receive priority in the system.
+ * It's a side effect, but a good one ;) -- rgerhards, 2008-03-14
+ * 
+ * Note that the flow control code does not need to be executed under mutex protection. I have changed
+ * the updates to iQueueSize to be atomic updates. I could do an atomic read here, but
+ * I do not do this because at this point it is not really important if the number
+ * is 100% correct. We need a rough idea if we have hit the marks and, if so, we keep
+ * delay the enqueue until this is (sufficiently) solved. -- rgerhards, 2008-10-09
  */
 rsRetVal
 queueEnqObj(queue_t *pThis, flowControl_t flowCtlType, void *pUsr)
@@ -2109,6 +2135,19 @@ queueEnqObj(queue_t *pThis, flowControl_t flowCtlType, void *pUsr)
 	 */
 	CHKiRet(queueChkDiscardMsg(pThis, pThis->iQueueSize, pThis->bRunsDA, pUsr));
 
+	if(flowCtlType == eFLOWCTL_FULL_DELAY) {
+		while(pThis->iQueueSize >= pThis->iFullDlyMrk) {
+			dbgoprint((obj_t*) pThis, "enqueueMsg: FullDelay mark reached for full delayable message - blocking.\n");
+			pthread_cond_wait(&pThis->belowFullDlyWtrMrk, pThis->mut); /* TODO error check? But what do then? */
+		}
+	} else if(flowCtlType == eFLOWCTL_LIGHT_DELAY) {
+		if(pThis->iQueueSize >= pThis->iLightDlyMrk) {
+			dbgoprint((obj_t*) pThis, "enqueueMsg: LightDelay mark reached for light delayable message - blocking a bit.\n");
+			timeoutComp(&t, 1000); /* 1000 millisconds = 1 second TODO: make configurable */
+			pthread_cond_timedwait(&pThis->belowLightDlyWtrMrk, pThis->mut, &t); /* TODO error check? But what do then? */
+		}
+	}
+
 	/* Please note that this function is not cancel-safe and consequently
 	 * sets the calling thread's cancelibility state to PTHREAD_CANCEL_DISABLE
 	 * during its execution. If that is not done, race conditions occur if the
@@ -2120,42 +2159,13 @@ queueEnqObj(queue_t *pThis, flowControl_t flowCtlType, void *pUsr)
 		d_pthread_mutex_lock(pThis->mut);
 	}
 
-	/* then check if we need to add an assistance disk queue */
+	/* then check if we need to add an assistance disk queue
+	 * Note: if we go for lock-free structures, we can move this to the "driver layer"
+	 * for DA queues. We probably do not even need an exact number, but this needs to
+	 * be seen then. -- rgerhards, 2008-10-09
+	 */
 	if(pThis->bIsDA)
 		CHKiRet(queueChkStrtDA(pThis));
-	
-	/* handle flow control
-	 * There are two different flow control mechanisms: basic and advanced flow control.
-	 * Basic flow control has always been implemented and protects the queue structures
-	 * in that it makes sure no more data is enqueued than the queue is configured to
-	 * support. Enhanced flow control is being added today. There are some sources which
-	 * can easily be stopped, e.g. a file reader. This is the case because it is unlikely
-	 * that blocking those sources will have negative effects (after all, the file is
-	 * continued to be written). Other sources can somewhat be blocked (e.g. the kernel
-	 * log reader or the local log stream reader): in general, nothing is lost if messages
-	 * from these sources are not picked up immediately. HOWEVER, they can not block for
-	 * an extended period of time, as this either causes message loss or - even worse - some
-	 * other bad effects (e.g. unresponsive system in respect to the main system log socket).
-	 * Finally, there are some (few) sources which can not be blocked at all. UDP syslog is
-	 * a prime example. If a UDP message is not received, it is simply lost. So we can't
-	 * do anything against UDP sockets that come in too fast. The core idea of advanced
-	 * flow control is that we take into account the different natures of the sources and
-	 * select flow control mechanisms that fit these needs. This also means, in the end
-	 * result, that non-blockable sources like UDP syslog receive priority in the system.
-	 * It's a side effect, but a good one ;) -- rgerhards, 2008-03-14
-	 */
-	if(flowCtlType == eFLOWCTL_FULL_DELAY) {
-		while(pThis->iQueueSize >= pThis->iFullDlyMrk) {
-			dbgoprint((obj_t*) pThis, "enqueueMsg: FullDelay mark reached for full delayble message - blocking.\n");
-			pthread_cond_wait(&pThis->belowFullDlyWtrMrk, pThis->mut); /* TODO error check? But what do then? */
-		}
-	} else if(flowCtlType == eFLOWCTL_LIGHT_DELAY) {
-		if(pThis->iQueueSize >= pThis->iLightDlyMrk) {
-			dbgoprint((obj_t*) pThis, "enqueueMsg: LightDelay mark reached for light delayble message - blocking a bit.\n");
-			timeoutComp(&t, 1000); /* 1000 millisconds = 1 second TODO: make configurable */
-			pthread_cond_timedwait(&pThis->belowLightDlyWtrMrk, pThis->mut, &t); /* TODO error check? But what do then? */
-		}
-	}
 
 	/* from our regular flow control settings, we are now ready to enqueue the object.
 	 * However, we now need to do a check if the queue permits to add more data. If that
