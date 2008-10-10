@@ -9,6 +9,9 @@ the output driver. It is recommended to drain queues with the previous
 version before switching to this one.
 ********************************* WARNING *********************************
 
+- implemented a lock-free queueing algorithm which can be used under
+  high load (there are a number of critereons which must be met so that
+  the lock-free enqueue is enabled)
 - reordered imudp processing. Message parsing is now done as part of main
   message queue worker processing (was part of the input thread)
   This should also improve performance, as potentially more work is

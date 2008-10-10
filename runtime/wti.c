@@ -367,7 +367,7 @@ wtiWorker(wti_t *pThis)
 		wtpProcessThrdChanges(pWtp);
 		pthread_testcancel(); /* see big comment in function header */
 #		if !defined(__hpux) /* pthread_yield is missing there! */
-		pthread_yield(); /* see big comment in function header */
+//		pthread_yield(); /* see big comment in function header */
 #		endif
 
 		/* if we have a rate-limiter set for this worker pool, let's call it. Please
@@ -408,7 +408,9 @@ wtiWorker(wti_t *pThis)
 			continue; /* request next iteration */
 		}
 
-		/* if we reach this point, we have a non-empty queue (and are still protected by mutex) */
+		/* if we reach this point, we have a non-empty queue (and are still protected by mutex) 
+		 * Note that pfDoWork must unlock the mutex ASAP
+		 */
 		pWtp->pfDoWork(pWtp->pUsr, pThis, iCancelStateSave);
 	}
 

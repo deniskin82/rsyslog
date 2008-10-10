@@ -69,6 +69,15 @@ static rsRetVal queueUngetObj(queue_t *pThis, obj_t *pUsr, int bLockMutex);
 #define QUEUE_CHECKPOINT	1
 #define QUEUE_NO_CHECKPOINT	0
 
+
+/* The define below defines a safety margin. It queue size is within this margin (or
+ * safely without), a number of optimizations are triggered. Most importantly, this
+ * criteria must be statisfied to use lock-free enqueue (among others). Change with care
+ * and keep the potential number of parallel inputs in mind.
+ * rgerhards, 2008-10-10
+ */
+#define QLOCKFREEMARGIN 100
+
 /* methods */
 
 
@@ -886,7 +895,9 @@ static rsRetVal qDelDisk(queue_t *pThis, void **ppUsr)
 		pThis->tVars.disk.bytesRead = offsOut;
 		dbgoprint((obj_t*) pThis, "a file has been deleted, now %lld octets disk space used\n", pThis->tVars.disk.sizeOnDisk);
 		/* awake possibly waiting enq process */
-		pthread_cond_signal(&pThis->notFull); /* we hold the mutex while we are in here! */
+		/* if we are above our margin, it is highly unlikely that sombody is waiting, so let's spare the call */
+		if(pThis->iQueueSize < QLOCKFREEMARGIN)
+			pthread_cond_signal(&pThis->notFull); /* we hold the mutex while we are in here! */
 	}
 
 finalize_it:
@@ -1423,11 +1434,11 @@ queueDequeueConsumable(queue_t *pThis, wti_t *pWti, int iCancelStateSave)
 	 * we have someone waiting for the condition (or only when we hit the watermark right
 	 * on the nail [exact value]) -- rgerhards, 2008-03-14
 	 */
-	if(iQueueSize < pThis->iFullDlyMrk) {
+	if((iQueueSize > pThis->iFullDlyMrk - QLOCKFREEMARGIN) && (iQueueSize < pThis->iFullDlyMrk)) {
 		pthread_cond_broadcast(&pThis->belowFullDlyWtrMrk);
 	}
 
-	if(iQueueSize < pThis->iLightDlyMrk) {
+	if((iQueueSize > pThis->iLightDlyMrk - QLOCKFREEMARGIN) && (iQueueSize < pThis->iLightDlyMrk)) {
 		pthread_cond_broadcast(&pThis->belowLightDlyWtrMrk);
 	}
 
@@ -1436,7 +1447,8 @@ queueDequeueConsumable(queue_t *pThis, wti_t *pWti, int iCancelStateSave)
 	 * any problems caused by this, but I add this comment in case some will be seen
 	 * in the next time.
 	 */
-	pthread_cond_signal(&pThis->notFull);
+	if(iQueueSize > (pThis->iMaxQueueSize - QLOCKFREEMARGIN))
+		pthread_cond_signal(&pThis->notFull);
 	d_pthread_mutex_unlock(pThis->mut);
 	pthread_setcancelstate(iCancelStateSave, NULL);
 	/* WE ARE NO LONGER PROTECTED BY THE MUTEX */
@@ -2088,6 +2100,81 @@ finalize_it:
 }
 
 
+/* enqueue a new user data element with locking the queue mutx
+ * rgerhards, 2008-10-10
+ */
+static inline rsRetVal
+queueEnqObjWithLock(queue_t *pThis, void *pUsr)
+{
+	DEFiRet;
+	struct timespec t;
+
+	ISOBJ_TYPE_assert(pThis, queue);
+
+	d_pthread_mutex_lock(pThis->mut);
+
+	/* then check if we need to add an assistance disk queue */
+	if(pThis->bIsDA)
+		CHKiRet(queueChkStrtDA(pThis));
+
+	/* from our regular flow control settings, we are now ready to enqueue the object.
+	 * However, we now need to do a check if the queue permits to add more data. If that
+	 * is not the case, basic flow control enters the field, which means we wait for
+	 * the queue to become ready or drop the new message. -- rgerhards, 2008-03-14
+	 */
+	while(   (pThis->iMaxQueueSize > 0 && pThis->iQueueSize >= pThis->iMaxQueueSize)
+	      || (pThis->qType == QUEUETYPE_DISK && pThis->sizeOnDiskMax != 0
+	      	  && pThis->tVars.disk.sizeOnDisk > pThis->sizeOnDiskMax)) {
+		dbgoprint((obj_t*) pThis, "enqueueMsg: queue FULL - waiting to drain.\n");
+		timeoutComp(&t, pThis->toEnq);
+		if(pthread_cond_timedwait(&pThis->notFull, pThis->mut, &t) != 0) {
+			dbgoprint((obj_t*) pThis, "enqueueMsg: cond timeout, dropping message!\n");
+			objDestruct(pUsr);
+			ABORT_FINALIZE(RS_RET_QUEUE_FULL);
+		}
+	}
+
+	/* and finally enqueue the message */
+	CHKiRet(queueAdd(pThis, pUsr));
+	queueChkPersist(pThis);
+
+finalize_it:
+	/* make sure at least one worker is running. */
+	queueAdviseMaxWorkers(pThis);
+	/* and release the mutex */
+	d_pthread_mutex_unlock(pThis->mut);
+	dbgoprint((obj_t*) pThis, "locking EnqueueObj advised worker start\n");
+
+	RETiRet;
+}
+
+
+/* enqueue a new user data element without locking the queue mutex
+ * This must only be called if the lock-free enqueue criterion is met,
+ * otherwise severe errors may result.
+ * rgerhards, 2008-10-10
+ */
+static inline rsRetVal
+queueEnqObjLockFree(queue_t *pThis, void *pUsr)
+{
+	DEFiRet;
+
+	ISOBJ_TYPE_assert(pThis, queue);
+
+	CHKiRet(queueAdd(pThis, pUsr));
+
+finalize_it:
+	// TODO: questionable if we need the advise
+	/* make sure at least one worker is running. */
+//	queueAdviseMaxWorkers(pThis);
+// TODO: check on the status of queueAdviseMaxWorkers. As it is currently,
+// we do NOT start more worker threads, which is a bug. But for
+// testing purposes, I leave it this simple. -- rgerhards, 2008-10-10
+	dbgoprint((obj_t*) pThis, "lock-free msg enqueue done\n");
+
+	RETiRet;
+}
+
 /* enqueue a new user data element
  * Enqueues the new element and awakes worker thread.
  *
@@ -2154,53 +2241,32 @@ queueEnqObj(queue_t *pThis, flowControl_t flowCtlType, void *pUsr)
 	 * thread is canceled (most important use case is input module termination).
 	 * rgerhards, 2008-01-08
 	 */
-	if(pThis->qType != QUEUETYPE_DIRECT) {
+	/* direct queues require special handling */
+	if(pThis->qType == QUEUETYPE_DIRECT) {
+		CHKiRet(queueAdd(pThis, pUsr));
+	} else {
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &iCancelStateSave);
-		d_pthread_mutex_lock(pThis->mut);
-	}
-
-	/* then check if we need to add an assistance disk queue
-	 * Note: if we go for lock-free structures, we can move this to the "driver layer"
-	 * for DA queues. We probably do not even need an exact number, but this needs to
-	 * be seen then. -- rgerhards, 2008-10-09
-	 */
-	if(pThis->bIsDA)
-		CHKiRet(queueChkStrtDA(pThis));
-
-	/* from our regular flow control settings, we are now ready to enqueue the object.
-	 * However, we now need to do a check if the queue permits to add more data. If that
-	 * is not the case, basic flow control enters the field, which means we wait for
-	 * the queue to become ready or drop the new message. -- rgerhards, 2008-03-14
-	 */
-	while(   (pThis->iMaxQueueSize > 0 && pThis->iQueueSize >= pThis->iMaxQueueSize)
-	      || (pThis->qType == QUEUETYPE_DISK && pThis->sizeOnDiskMax != 0
-	      	  && pThis->tVars.disk.sizeOnDisk > pThis->sizeOnDiskMax)) {
-		dbgoprint((obj_t*) pThis, "enqueueMsg: queue FULL - waiting to drain.\n");
-		timeoutComp(&t, pThis->toEnq);
-		if(pthread_cond_timedwait(&pThis->notFull, pThis->mut, &t) != 0) {
-			dbgoprint((obj_t*) pThis, "enqueueMsg: cond timeout, dropping message!\n");
-			objDestruct(pUsr);
-			ABORT_FINALIZE(RS_RET_QUEUE_FULL);
+// TODO: bIsDa can be improved - it is OK to be lock-free, as long as we do not RUN DA
+// or, better, as long as we have sufficient margin to where we start running DA (so the
+// upper margin should go lower).
+dbgprintf("bIsDA: %d, qType: %d, iQueueSize: %d, iMaxQueueSize: %d\n", pThis->bIsDA, pThis->qType, pThis->iQueueSize,pThis->iMaxQueueSize);
+		if(!pThis->bIsDA && pThis->qType != QUEUETYPE_DISK &&
+		   pThis->iQueueSize > QLOCKFREEMARGIN  && pThis->iQueueSize < (pThis->iMaxQueueSize - QLOCKFREEMARGIN)) {
+			CHKiRet(queueEnqObjLockFree(pThis, pUsr));
+		} else {
+			CHKiRet(queueEnqObjWithLock(pThis, pUsr));
 		}
 	}
 
-	/* and finally enqueue the message */
-	CHKiRet(queueAdd(pThis, pUsr));
-	queueChkPersist(pThis);
 
 finalize_it:
 	if(pThis->qType != QUEUETYPE_DIRECT) {
-		/* make sure at least one worker is running. */
-		queueAdviseMaxWorkers(pThis);
-		/* and release the mutex */
-		d_pthread_mutex_unlock(pThis->mut);
 		pthread_setcancelstate(iCancelStateSave, NULL);
-		dbgoprint((obj_t*) pThis, "EnqueueMsg advised worker start\n");
 		/* the following pthread_yield is experimental, but brought us performance
 		 * benefit. For details, please see http://kb.monitorware.com/post14216.html#p14216
 		 * rgerhards, 2008-10-09
 		 */
-		pthread_yield();
+//		pthread_yield();
 	}
 
 	RETiRet;
