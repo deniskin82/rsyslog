@@ -2154,6 +2154,17 @@ finalize_it:
  * otherwise severe errors may result.
  * rgerhards, 2008-10-10
  */
+
+
+// TODO
+// we have potentially more than one input enqueue a message at the same time
+// THIS DOES NOT WORK with the current algorithm. To keep it "lock free" in regard
+// to the central queue mutex, we must define a special enq mutex which needs to be
+// aquired by everyone who intends to enqueue an object. Still, this should put
+// us in a better position than using a single mutex.
+// I HAVE NOT ADDED THIS CODE so far because I would like to see some
+// results from the simple case first (less work lost if it doesn't work out)
+// rgerhards, 2008-10-10
 static inline rsRetVal
 queueEnqObjLockFree(queue_t *pThis, void *pUsr)
 {
