@@ -116,8 +116,6 @@ static dbgThrdInfo_t *dbgCallStackListRoot = NULL;
 static dbgThrdInfo_t *dbgCallStackListLast = NULL;
 static pthread_mutex_t mutCallStack;
 
-static pthread_mutex_t mutdbgprint;
-
 static pthread_key_t keyCallStack;
 
 
@@ -146,15 +144,6 @@ static pthread_key_t keyCallStack;
 			dbg##type##ListLast->pNext = pThis; \
 			dbg##type##ListLast = pThis; \
 		}
-
-/* we need to do our own mutex cancel cleanup handler as it shall not
- * be subject to the debugging instrumentation (that would probably run us
- * into an infinite loop
- */
-static void dbgMutexCancelCleanupHdlr(void *pmut)
-{
-	pthread_mutex_unlock((pthread_mutex_t*) pmut);
-}
 
 
 /* handler to update the last execution location seen
@@ -758,58 +747,36 @@ sigsegvHdlr(int signum)
 	abort();
 }
 
-#if 1
 #pragma GCC diagnostic ignored "-Wempty-body"
 /* write the debug message. This is a helper to dbgprintf and dbgoprint which
  * contains common code. added 2008-09-26 rgerhards
+ * I am replacing the mutex calls with atomic operations. Of course, this leads
+ * to less proper synrchonization and the output may be a bit more messed up.
+ * HOWEVER, this is better, because now the debug system does no longer 
+ * serialize processing as much as it did before. I leave the mutex calls
+ * in, just commented out, so that they can be re-activated in situations where
+ * this is desirable. -- rgerhards, 2008-10-13
  */
 static void
 dbgprint(obj_t *pObj, char *pszMsg, size_t lenMsg)
 {
-	static pthread_t ptLastThrdID = 0;
-	static int bWasNL = 0;
-	char pszThrdName[64]; /* 64 is to be on the safe side, anything over 20 is bad... */
-	char pszWriteBuf[1024];
 	size_t lenWriteBuf;
 	struct timespec t;
 	uchar *pszObjName = NULL;
+	char pszThrdName[64]; /* 64 is to be on the safe side, anything over 20 is bad... */
+	char pszWriteBuf[1024];
 
-	/* we must get the object name before we lock the mutex, because the object
-	 * potentially calls back into us. If we locked the mutex, we would deadlock
-	 * ourselfs. On the other hand, the GetName call needs not to be protected, as
-	 * this thread has a valid reference. If such an object is deleted by another
-	 * thread, we are in much more trouble than just for dbgprint(). -- rgerhards, 2008-09-26
-	 */
 	if(pObj != NULL) {
 		pszObjName = obj.GetName(pObj);
-	}
-
-	pthread_mutex_lock(&mutdbgprint);
-	pthread_cleanup_push(dbgMutexCancelCleanupHdlr, &mutdbgprint);
-
-	/* The bWasNL handler does not really work. It works if no thread
-	 * switching occurs during non-NL messages. Else, things are messed
-	 * up. Anyhow, it works well enough to provide useful help during
-	 * getting this up and running. It is questionable if the extra effort
-	 * is worth fixing it, giving the limited appliability. -- rgerhards, 2005-10-25
-	 * I have decided that it is not worth fixing it - especially as it works
-	 * pretty well. -- rgerhards, 2007-06-15
-	 */
-	if(ptLastThrdID != pthread_self()) {
-		if(!bWasNL) {
-			if(stddbg != -1) write(stddbg, "\n", 1);
-			if(altdbg != -1) write(altdbg, "\n", 1);
-			bWasNL = 1;
-		}
-		ptLastThrdID = pthread_self();
 	}
 
 	/* do not cache the thread name, as the caller might have changed it
 	 * TODO: optimized, invalidate cache when new name is set
 	 */
-	dbgGetThrdName(pszThrdName, sizeof(pszThrdName), ptLastThrdID, 0);
+	dbgGetThrdName(pszThrdName, sizeof(pszThrdName), pthread_self(), 0);
 
-	if(bWasNL) {
+	/* we assume a full line if it finishes with a NL char */
+	if(pszMsg[lenMsg -1] == '\n') {
 		if(bPrintTime) {
 			clock_gettime(CLOCK_REALTIME, &t);
 			lenWriteBuf = snprintf(pszWriteBuf, sizeof(pszWriteBuf),
@@ -829,19 +796,11 @@ dbgprint(obj_t *pObj, char *pszMsg, size_t lenMsg)
 	}
 	if(stddbg != -1) write(stddbg, pszMsg, lenMsg);
 	if(altdbg != -1) write(altdbg, pszMsg, lenMsg);
-
-	bWasNL = (pszMsg[lenMsg - 1] == '\n') ? 1 : 0;
-
-	pthread_cleanup_pop(1);
 }
 #pragma GCC diagnostic warning "-Wempty-body"
-#endif
+
 
 /* print some debug output when an object is given
- * This is mostly a copy of dbgprintf, but I do not know how to combine it
- * into a single function as we have variable arguments and I don't know how to call
- * from one vararg function into another. I don't dig in this, it is OK for the
- * time being. -- rgerhards, 2008-01-29
  */
 void
 dbgoprint(obj_t *pObj, char *fmt, ...)
@@ -871,7 +830,6 @@ dbgoprint(obj_t *pObj, char *fmt, ...)
 
 
 /* print some debug output when no object is given
- * WARNING: duplicate code, see dbgoprin above!
  */
 void
 dbgprintf(char *fmt, ...)
@@ -889,11 +847,6 @@ dbgprintf(char *fmt, ...)
 	dbgprint(NULL, pszWriteBuf, lenWriteBuf);
 }
 
-void tester(void)
-{
-BEGINfunc
-ENDfunc
-}
 
 /* handler called when a function is entered. This function creates a new
  * funcDB on the heap if the passed-in pointer is NULL.
@@ -1249,7 +1202,6 @@ rsRetVal dbgClassInit(void)
 	pthread_mutex_init(&mutFuncDBList, NULL);
 	pthread_mutex_init(&mutMutLog, NULL);
 	pthread_mutex_init(&mutCallStack, NULL);
-	pthread_mutex_init(&mutdbgprint, NULL);
 
 	/* while we try not to use any of the real rsyslog code (to avoid infinite loops), we
 	 * need to have the ability to query object names. Thus, we need to obtain a pointer to

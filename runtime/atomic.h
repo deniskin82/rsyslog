@@ -45,12 +45,15 @@
 #	define ATOMIC_DEC_AND_FETCH(data) __sync_sub_and_fetch(&(data), 1)
 #	define ATOMIC_FETCH_32BIT(data) ((unsigned) __sync_fetch_and_and(&(data), 0xffffffff))
 #	define ATOMIC_STORE_1_TO_32BIT(data) __sync_lock_test_and_set(&(data), 1)
+#	define ATOMIC_CAS(data, oldval, newval) __sync_val_compare_and_swap(data, oldval, newval)
+#	define ATOMIC_CAS_BOOL(data, oldval, newval) __sync_bool_compare_and_swap(data, oldval, newval)
 #else
-#	warning "atomic builtins not available, using nul operations"
+#	warning "atomic builtins not available, using nul operations, resulting binary may be racy!"
 #	define ATOMIC_INC(data) (++(data))
 #	define ATOMIC_DEC_AND_FETCH(data) (--(data))
 #	define ATOMIC_FETCH_32BIT(data) (data)
 #	define ATOMIC_STORE_1_TO_32BIT(data) (data) = 1
+#	error "atomic CAS not available, but currently no emulation exists"
 #endif
 
 #endif /* #ifndef INCLUDED_ATOMIC_H */
