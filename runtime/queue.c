@@ -49,6 +49,7 @@
 #include "obj.h"
 #include "wtp.h"
 #include "wti.h"
+#include "atomic.h"
 
 /* static data */
 DEFobjStaticHelpers
@@ -86,6 +87,30 @@ ENDfunc
 #endif
 	return pThis->iQueueSize + pThis->iUngottenObjs;
 }
+
+
+/* This function drains the queue in cases where this needs to be done. The most probable
+ * reason is a HUP which needs to discard data (because the queue is configured to be lossy).
+ * During a shutdown, this is typically not needed, as the OS frees up ressources and does
+ * this much quicker than when we clean up ourselvs. -- rgerhards, 2008-10-21
+ * This function returns void, as it makes no sense to communicate an error back, even if
+ * it happens.
+ */
+static inline void queueDrain(queue_t *pThis)
+{
+	void *pUsr;
+	
+	ASSERT(pThis != NULL);
+
+	/* iQueueSize is not decremented by qDel(), so we need to do it ourselves */
+	while(pThis->iQueueSize-- > 0) {
+		pThis->qDel(pThis, &pUsr);
+		if(pUsr != NULL) {
+			objDestruct(pUsr);
+		}
+	}
+}
+
 
 /* --------------- code for disk-assisted (DA) queue modes -------------------- */
 
@@ -194,14 +219,6 @@ queueTurnOffDAMode(queue_t *pThis)
 			queueAdviseMaxWorkers(pThis);
 		}
 	}
-
-	/* TODO: we have a *really biiiiig* memory leak here: if the queue could not be persisted, all of
-	 * its data elements are still in memory. That doesn't really matter if we are terminated, but on
-	 * HUP this memory leaks. We MUST add a loop of destructor calls here. However, this takes time
-	 * (possibly a lot), so it is probably best to have a config variable for that.
-	 * Something for 3.11.1!
-	 * rgerhards, 2008-01-30
-	 */
 
 	RETiRet;
 }
@@ -460,11 +477,14 @@ static rsRetVal qDestructFixedArray(queue_t *pThis)
 	
 	ASSERT(pThis != NULL);
 
+	queueDrain(pThis); /* discard any remaining queue entries */
+
 	if(pThis->tVars.farray.pBuf != NULL)
 		free(pThis->tVars.farray.pBuf);
 
 	RETiRet;
 }
+
 
 static rsRetVal qAddFixedArray(queue_t *pThis, void* in)
 {
@@ -569,11 +589,11 @@ static rsRetVal qConstructLinkedList(queue_t *pThis)
 static rsRetVal qDestructLinkedList(queue_t __attribute__((unused)) *pThis)
 {
 	DEFiRet;
-	
-	/* with the linked list type, there is nothing to do here. The
-	 * reason is that the Destructor is only called after all entries
-	 * have bene taken off the queue. In this case, there is nothing
-	 * dynamic left with the linked list.
+
+	queueDrain(pThis); /* discard any remaining queue entries */
+
+	/* with the linked list type, there is nothing left to do here. The
+	 * reason is that there are no dynamic elements for the list itself.
 	 */
 
 	RETiRet;
@@ -996,7 +1016,7 @@ queueAdd(queue_t *pThis, void *pUsr)
 	CHKiRet(pThis->qAdd(pThis, pUsr));
 
 	if(pThis->qType != QUEUETYPE_DIRECT) {
-		++pThis->iQueueSize;
+		ATOMIC_INC(pThis->iQueueSize);
 		dbgoprint((obj_t*) pThis, "entry added, size now %d entries\n", pThis->iQueueSize);
 	}
 
@@ -1025,7 +1045,7 @@ queueDel(queue_t *pThis, void *pUsr)
 		iRet = queueGetUngottenObj(pThis, (obj_t**) pUsr);
 	} else {
 		iRet = pThis->qDel(pThis, pUsr);
-		--pThis->iQueueSize;
+		ATOMIC_DEC(pThis->iQueueSize);
 	}
 
 	dbgoprint((obj_t*) pThis, "entry deleted, state %d, size now %d entries\n",
@@ -1265,6 +1285,7 @@ rsRetVal queueConstruct(queue_t **ppThis, queueType_t qType, int iWorkerThreads,
 
 	/* we have an object, so let's fill the properties */
 	objConstructSetObjInfo(pThis);
+	pThis->bOptimizeUniProc = glbl.GetOptimizeUniProc();
 	if((pThis->pszSpoolDir = (uchar*) strdup((char*)glbl.GetWorkDir())) == NULL)
 		ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);
 
@@ -1430,8 +1451,13 @@ queueDequeueConsumable(queue_t *pThis, wti_t *pWti, int iCancelStateSave)
 		pthread_cond_broadcast(&pThis->belowLightDlyWtrMrk);
 	}
 
-	d_pthread_mutex_unlock(pThis->mut);
+	/* rgerhards, 2008-09-30: I reversed the order of cond_signal und mutex_unlock
+	 * as of the pthreads recommendation on predictable scheduling behaviour. I don't see
+	 * any problems caused by this, but I add this comment in case some will be seen
+	 * in the next time.
+	 */
 	pthread_cond_signal(&pThis->notFull);
+	d_pthread_mutex_unlock(pThis->mut);
 	pthread_setcancelstate(iCancelStateSave, NULL);
 	/* WE ARE NO LONGER PROTECTED BY THE MUTEX */
 
@@ -1507,8 +1533,6 @@ queueRateLimiter(queue_t *pThis)
 	struct tm m;
 
 	ISOBJ_TYPE_assert(pThis, queue);
-
-	dbgoprint((obj_t*) pThis, "entering rate limiter\n");
 
 	iDelay = 0;
 	if(pThis->iDeqtWinToHr != 25) { /* 25 means disabled */
@@ -2092,10 +2116,18 @@ queueEnqObj(queue_t *pThis, flowControl_t flowCtlType, void *pUsr)
 {
 	DEFiRet;
 	int iCancelStateSave;
-	int i;
 	struct timespec t;
 
 	ISOBJ_TYPE_assert(pThis, queue);
+
+	/* first check if we need to discard this message (which will cause CHKiRet() to exit)
+	 * rgerhards, 2008-10-07: It is OK to do this outside of mutex protection. The iQueueSize
+	 * and bRunsDA parameters may not reflect the correct settings here, but they are
+	 * "good enough" in the sense that they can be used to drive the decision. Valgrind's
+	 * threading tools may point this access to be an error, but this is done
+	 * intentional. I do not see this causes problems to us.
+	 */
+	CHKiRet(queueChkDiscardMsg(pThis, pThis->iQueueSize, pThis->bRunsDA, pUsr));
 
 	/* Please note that this function is not cancel-safe and consequently
 	 * sets the calling thread's cancelibility state to PTHREAD_CANCEL_DISABLE
@@ -2107,9 +2139,6 @@ queueEnqObj(queue_t *pThis, flowControl_t flowCtlType, void *pUsr)
 		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &iCancelStateSave);
 		d_pthread_mutex_lock(pThis->mut);
 	}
-
-	/* first check if we need to discard this message (which will cause CHKiRet() to exit) */
-	CHKiRet(queueChkDiscardMsg(pThis, pThis->iQueueSize, pThis->bRunsDA, pUsr));
 
 	/* then check if we need to add an assistance disk queue */
 	if(pThis->bIsDA)
@@ -2141,7 +2170,7 @@ queueEnqObj(queue_t *pThis, flowControl_t flowCtlType, void *pUsr)
 			pthread_cond_wait(&pThis->belowFullDlyWtrMrk, pThis->mut); /* TODO error check? But what do then? */
 		}
 	} else if(flowCtlType == eFLOWCTL_LIGHT_DELAY) {
-		while(pThis->iQueueSize >= pThis->iLightDlyMrk) {
+		if(pThis->iQueueSize >= pThis->iLightDlyMrk) {
 			dbgoprint((obj_t*) pThis, "enqueueMsg: LightDelay mark reached for light delayble message - blocking a bit.\n");
 			timeoutComp(&t, 1000); /* 1000 millisconds = 1 second TODO: make configurable */
 			pthread_cond_timedwait(&pThis->belowLightDlyWtrMrk, pThis->mut, &t); /* TODO error check? But what do then? */
@@ -2171,15 +2200,19 @@ queueEnqObj(queue_t *pThis, flowControl_t flowCtlType, void *pUsr)
 
 finalize_it:
 	if(pThis->qType != QUEUETYPE_DIRECT) {
-		d_pthread_mutex_unlock(pThis->mut);
-		i = pthread_cond_signal(&pThis->notEmpty);
-		dbgoprint((obj_t*) pThis, "EnqueueMsg signaled condition (%d)\n", i);
-		pthread_setcancelstate(iCancelStateSave, NULL);
-	}
-
-	/* make sure at least one worker is running. */
-	if(pThis->qType != QUEUETYPE_DIRECT) {
+		/* make sure at least one worker is running. */
 		queueAdviseMaxWorkers(pThis);
+		/* and release the mutex */
+		d_pthread_mutex_unlock(pThis->mut);
+		pthread_setcancelstate(iCancelStateSave, NULL);
+		dbgoprint((obj_t*) pThis, "EnqueueMsg advised worker start\n");
+		/* the following pthread_yield is experimental, but brought us performance
+		 * benefit. For details, please see http://kb.monitorware.com/post14216.html#p14216
+		 * rgerhards, 2008-10-09
+		 * but this is only true for uniprocessors, so we guard it with an optimize flag -- rgerhards, 2008-10-22
+		 */
+		if(pThis->bOptimizeUniProc)
+			pthread_yield();
 	}
 
 	RETiRet;

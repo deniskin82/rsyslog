@@ -347,6 +347,7 @@ static rsRetVal
 doModInit(rsRetVal (*modInit)(int, int*, rsRetVal(**)(), rsRetVal(*)(), modInfo_t*), uchar *name, void *pModHdlr)
 {
 	DEFiRet;
+	rsRetVal localRet;
 	modInfo_t *pNew = NULL;
 	rsRetVal (*modGetType)(eModType_t *pType);
 
@@ -391,6 +392,10 @@ doModInit(rsRetVal (*modInit)(int, int*, rsRetVal(**)(), rsRetVal(*)(), modInfo_
 			CHKiRet((*pNew->modQueryEtryPt)((uchar*)"parseSelectorAct", &pNew->mod.om.parseSelectorAct));
 			CHKiRet((*pNew->modQueryEtryPt)((uchar*)"isCompatibleWithFeature", &pNew->isCompatibleWithFeature));
 			CHKiRet((*pNew->modQueryEtryPt)((uchar*)"tryResume", &pNew->tryResume));
+			/* try load optional interfaces */
+			localRet = (*pNew->modQueryEtryPt)((uchar*)"doHUP", &pNew->doHUP);
+			if(localRet != RS_RET_OK && localRet != RS_RET_MODULE_ENTRY_POINT_NOT_FOUND)
+				ABORT_FINALIZE(localRet);
 			break;
 		case eMOD_LIB:
 			break;
@@ -570,6 +575,8 @@ Load(uchar *pModName)
 	int bHasExtension;
         void *pModHdlr, *pModInit;
 	modInfo_t *pModInfo;
+	uchar *pModDirCurr, *pModDirNext;
+	int iLoadCnt;
 
 	assert(pModName != NULL);
 	dbgprintf("Requested to load module '%s'\n", pModName);
@@ -591,48 +598,84 @@ Load(uchar *pModName)
 		pModInfo = GetNxt(pModInfo);
 	}
 
-	/* now build our load module name */
-	if(*pModName == '/') {
-		*szPath = '\0';	/* we do not need to append the path - its already in the module name */
-		iPathLen = 0;
-	} else {
-		*szPath = '\0';
-		strncat((char *) szPath, (pModDir == NULL) ? _PATH_MODDIR : (char*) pModDir, sizeof(szPath) - 1);
-		iPathLen = strlen((char*) szPath);
-		if((szPath[iPathLen - 1] != '/')) {
-			if((iPathLen <= sizeof(szPath) - 2)) {
-				szPath[iPathLen++] = '/';
-				szPath[iPathLen] = '\0';
-			} else {
-				errmsg.LogError(0, RS_RET_MODULE_LOAD_ERR_PATHLEN, "could not load module '%s', path too long\n", pModName);
+	pModDirCurr = (uchar *)((pModDir == NULL) ? _PATH_MODDIR : (char *)pModDir);
+	pModDirNext = NULL;
+	pModHdlr    = NULL;
+	iLoadCnt    = 0;
+	do {
+		/* now build our load module name */
+		if(*pModName == '/') {
+			*szPath = '\0';	/* we do not need to append the path - its already in the module name */
+			iPathLen = 0;
+		} else {
+			*szPath = '\0';
+
+			iPathLen = strlen((char *)pModDirCurr);
+			pModDirNext = (uchar *)strchr((char *)pModDirCurr, ':');
+			if(pModDirNext)
+				iPathLen = (size_t)(pModDirNext - pModDirCurr);
+
+			if(iPathLen == 0) {
+				if(pModDirNext) {
+					pModDirCurr = pModDirNext + 1;
+					continue;
+				}
+				break;
+			} else if(iPathLen > sizeof(szPath) - 1) {
+				errmsg.LogError(0, NO_ERRCODE, "could not load module '%s', module path too long\n", pModName);
 				ABORT_FINALIZE(RS_RET_MODULE_LOAD_ERR_PATHLEN);
 			}
+
+			strncat((char *) szPath, (char *)pModDirCurr, iPathLen);
+			iPathLen = strlen((char*) szPath);
+
+			if(pModDirNext)
+				pModDirCurr = pModDirNext + 1;
+
+			if((szPath[iPathLen - 1] != '/')) {
+				if((iPathLen <= sizeof(szPath) - 2)) {
+					szPath[iPathLen++] = '/';
+					szPath[iPathLen] = '\0';
+				} else {
+					errmsg.LogError(0, RS_RET_MODULE_LOAD_ERR_PATHLEN, "could not load module '%s', path too long\n", pModName);
+					ABORT_FINALIZE(RS_RET_MODULE_LOAD_ERR_PATHLEN);
+				}
+			}
 		}
-	}
 
-	/* ... add actual name ... */
-	strncat((char *) szPath, (char *) pModName, sizeof(szPath) - iPathLen - 1);
+		/* ... add actual name ... */
+		strncat((char *) szPath, (char *) pModName, sizeof(szPath) - iPathLen - 1);
 
-	/* now see if we have an extension and, if not, append ".so" */
-	if(!bHasExtension) {
-		/* we do not have an extension and so need to add ".so"
-		 * TODO: I guess this is highly importable, so we should change the
-		 * algo over time... -- rgerhards, 2008-03-05
-		 */
-		/* ... so now add the extension */
-		strncat((char *) szPath, ".so", sizeof(szPath) - strlen((char*) szPath) - 1);
-		iPathLen += 3;
-	}
+		/* now see if we have an extension and, if not, append ".so" */
+		if(!bHasExtension) {
+			/* we do not have an extension and so need to add ".so"
+			 * TODO: I guess this is highly importable, so we should change the
+			 * algo over time... -- rgerhards, 2008-03-05
+			 */
+			/* ... so now add the extension */
+			strncat((char *) szPath, ".so", sizeof(szPath) - strlen((char*) szPath) - 1);
+			iPathLen += 3;
+		}
 
-	if(iPathLen + strlen((char*) pModName) >= sizeof(szPath)) {
-		errmsg.LogError(0, RS_RET_MODULE_LOAD_ERR_PATHLEN, "could not load module '%s', path too long\n", pModName);
-		ABORT_FINALIZE(RS_RET_MODULE_LOAD_ERR_PATHLEN);
-	}
+		if(iPathLen + strlen((char*) pModName) >= sizeof(szPath)) {
+			errmsg.LogError(0, RS_RET_MODULE_LOAD_ERR_PATHLEN, "could not load module '%s', path too long\n", pModName);
+			ABORT_FINALIZE(RS_RET_MODULE_LOAD_ERR_PATHLEN);
+		}
 
-	/* complete load path constructed, so ... GO! */
-	dbgprintf("loading module '%s'\n", szPath);
-	if(!(pModHdlr = dlopen((char *) szPath, RTLD_NOW))) {
-		errmsg.LogError(0, RS_RET_MODULE_LOAD_ERR_DLOPEN, "could not load module '%s', dlopen: %s\n", szPath, dlerror());
+		/* complete load path constructed, so ... GO! */
+		dbgprintf("loading module '%s'\n", szPath);
+		pModHdlr = dlopen((char *) szPath, RTLD_NOW);
+		iLoadCnt++;
+	
+	} while(pModHdlr == NULL && *pModName != '/' && pModDirNext);
+
+	if(!pModHdlr) {
+		if(iLoadCnt) {
+			errmsg.LogError(0, RS_RET_MODULE_LOAD_ERR_DLOPEN, "could not load module '%s', dlopen: %s\n", szPath, dlerror());
+		} else {
+			errmsg.LogError(0, NO_ERRCODE, "could not load module '%s', ModDir was '%s'\n", szPath,
+			                               ((pModDir == NULL) ? _PATH_MODDIR : (char *)pModDir));
+		}
 		ABORT_FINALIZE(RS_RET_MODULE_LOAD_ERR_DLOPEN);
 	}
 	if(!(pModInit = dlsym(pModHdlr, "modInit"))) {

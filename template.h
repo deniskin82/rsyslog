@@ -78,12 +78,15 @@ struct templateEntry {
 			enum {
 				TPL_REGEX_NOMATCH_USE_DFLTSTR = 0, /* use the (old style) default "**NO MATCH**" string */
 				TPL_REGEX_NOMATCH_USE_BLANK = 1, /* use a blank string */
-				TPL_REGEX_NOMATCH_USE_WHOLE_FIELD = 2 /* use the full field contents that we were searching in*/
+				TPL_REGEX_NOMATCH_USE_WHOLE_FIELD = 2, /* use the full field contents that we were searching in*/
+				TPL_REGEX_NOMATCH_USE_ZERO = 3 /* use  0 (useful for numerical values) */
 			}  nomatchAction;	/**< what to do if we do not have a match? */
 			
 #endif
 			unsigned has_fields; /* support for field-counting: field to extract */
 			unsigned char field_delim; /* support for field-counting: field delemiter char */
+			int field_expand;	/* use multiple instances of the field delimiter as a single one? */
+
 			enum tplFormatTypes eDateFormat;
 			enum tplFormatCaseConvTypes eCaseConv;
 			struct { 		/* bit fields! */

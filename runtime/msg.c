@@ -42,6 +42,7 @@
 #include "msg.h"
 #include "var.h"
 #include "datetime.h"
+#include "glbl.h"
 #include "regexp.h"
 #include "atomic.h"
 
@@ -49,6 +50,7 @@
 DEFobjStaticHelpers
 DEFobjCurrIf(var)
 DEFobjCurrIf(datetime)
+DEFobjCurrIf(glbl)
 DEFobjCurrIf(regexp)
 
 static syslogCODE rs_prioritynames[] =
@@ -138,8 +140,8 @@ void (*funcMsgPrepareEnqueue)(msg_t *pMsg);
 #define MsgLock(pMsg) 	funcLock(pMsg)
 #define MsgUnlock(pMsg) funcUnlock(pMsg)
 #else
-#define MsgLock(pMsg) 	{dbgprintf("line %d\n - ", __LINE__); funcLock(pMsg);; }
-#define MsgUnlock(pMsg) {dbgprintf("line %d - ", __LINE__); funcUnlock(pMsg); }
+#define MsgLock(pMsg) 	{dbgprintf("MsgLock line %d\n - ", __LINE__); funcLock(pMsg);; }
+#define MsgUnlock(pMsg) {dbgprintf("MsgUnlock line %d - ", __LINE__); funcUnlock(pMsg); }
 #endif
 
 /* the next function is a dummy to be used by the looking functions
@@ -188,6 +190,7 @@ static void MsgPrepareEnqueueLockingCase(msg_t *pThis)
 	 * rgerhards, 2008-07-14
 	 */
 	pthread_mutexattr_destroy(&pThis->mutAttr);
+	pThis->bDoLock = 1;
 	ENDfunc
 }
 
@@ -197,14 +200,16 @@ static void MsgLockLockingCase(msg_t *pThis)
 {
 	/* DEV debug only! dbgprintf("MsgLock(0x%lx)\n", (unsigned long) pThis); */
 	assert(pThis != NULL);
-	pthread_mutex_lock(&pThis->mut);
+	if(pThis->bDoLock == 1) /* TODO: this is a testing hack, we should find a way with better performance! -- rgerhards, 2009-01-27 */
+		pthread_mutex_lock(&pThis->mut);
 }
 
 static void MsgUnlockLockingCase(msg_t *pThis)
 {
 	/* DEV debug only! dbgprintf("MsgUnlock(0x%lx)\n", (unsigned long) pThis); */
 	assert(pThis != NULL);
-	pthread_mutex_unlock(&pThis->mut);
+	if(pThis->bDoLock == 1) /* TODO: this is a testing hack, we should find a way with better performance! -- rgerhards, 2009-01-27 */
+		pthread_mutex_unlock(&pThis->mut);
 }
 
 /* delete the mutex object on message destruction (locking case)
@@ -237,12 +242,21 @@ rsRetVal MsgEnableThreadSafety(void)
 /* end locking functions */
 
 
-/* "Constructor" for a msg "object". Returns a pointer to
+/* This is common code for all Constructors. It is defined in an
+ * inline'able function so that we can save a function call in the
+ * actual constructors (otherwise, the msgConstruct would need
+ * to call msgConstructWithTime(), which would require a
+ * function call). Now, both can use this inline function. This
+ * enables us to be optimal, but still have the code just once.
  * the new object or NULL if no such object could be allocated.
  * An object constructed via this function should only be destroyed
- * via "msgDestruct()".
+ * via "msgDestruct()". This constructor does not query system time
+ * itself but rather uses a user-supplied value. This enables the caller
+ * to do some tricks to save processing time (done, for example, in the
+ * udp input).
+ * rgerhards, 2008-10-06
  */
-rsRetVal msgConstruct(msg_t **ppThis)
+static inline rsRetVal msgBaseConstruct(msg_t **ppThis)
 {
 	DEFiRet;
 	msg_t *pM;
@@ -255,7 +269,6 @@ rsRetVal msgConstruct(msg_t **ppThis)
 	pM->iRefCount = 1;
 	pM->iSeverity = -1;
 	pM->iFacility = -1;
-	datetime.getCurrTime(&(pM->tRcvdAt));
 	objConstructSetObjInfo(pM);
 
 	/* DEV debugging only! dbgprintf("msgConstruct\t0x%x, ref 1\n", (int)pM);*/
@@ -267,13 +280,62 @@ finalize_it:
 }
 
 
+/* "Constructor" for a msg "object". Returns a pointer to
+ * the new object or NULL if no such object could be allocated.
+ * An object constructed via this function should only be destroyed
+ * via "msgDestruct()". This constructor does not query system time
+ * itself but rather uses a user-supplied value. This enables the caller
+ * to do some tricks to save processing time (done, for example, in the
+ * udp input).
+ * rgerhards, 2008-10-06
+ */
+rsRetVal msgConstructWithTime(msg_t **ppThis, struct syslogTime *stTime, time_t ttGenTime)
+{
+	DEFiRet;
+
+	CHKiRet(msgBaseConstruct(ppThis));
+	(*ppThis)->ttGenTime = ttGenTime;
+	memcpy(&(*ppThis)->tRcvdAt, stTime, sizeof(struct syslogTime));
+	memcpy(&(*ppThis)->tTIMESTAMP, stTime, sizeof(struct syslogTime));
+
+finalize_it:
+	RETiRet;
+}
+
+
+/* "Constructor" for a msg "object". Returns a pointer to
+ * the new object or NULL if no such object could be allocated.
+ * An object constructed via this function should only be destroyed
+ * via "msgDestruct()". This constructor, for historical reasons,
+ * also sets the two timestamps to the current time.
+ */
+rsRetVal msgConstruct(msg_t **ppThis)
+{
+	DEFiRet;
+
+	CHKiRet(msgBaseConstruct(ppThis));
+	/* we initialize both timestamps to contain the current time, so that they
+	 * are consistent. Also, this saves us from doing any further time calls just
+	 * to obtain a timestamp. The memcpy() should not really make a difference,
+	 * especially as I think there is no codepath currently where it would not be
+	 * required (after I have cleaned up the pathes ;)). -- rgerhards, 2008-10-02
+	 */
+	datetime.getCurrTime(&((*ppThis)->tRcvdAt), &((*ppThis)->ttGenTime));
+	memcpy(&(*ppThis)->tTIMESTAMP, &(*ppThis)->tRcvdAt, sizeof(struct syslogTime));
+
+finalize_it:
+	RETiRet;
+}
+
+
 BEGINobjDestruct(msg) /* be sure to specify the object type also in END and CODESTART macros! */
 	int currRefCount;
 CODESTARTobjDestruct(msg)
-	/* DEV Debugging only ! dbgprintf("msgDestruct\t0x%lx, Ref now: %d\n", (unsigned long)pM, pM->iRefCount - 1); */
-#	ifdef DO_HAVE_ATOMICS
+	/* DEV Debugging only ! dbgprintf("msgDestruct\t0x%lx, Ref now: %d\n", (unsigned long)pThis, pThis->iRefCount - 1); */
+#	ifdef HAVE_ATOMIC_BUILTINS
 		currRefCount = ATOMIC_DEC_AND_FETCH(pThis->iRefCount);
 #	else
+		MsgLock(pThis);
 		currRefCount = --pThis->iRefCount;
 # 	endif
 	if(currRefCount == 0)
@@ -287,6 +349,8 @@ CODESTARTobjDestruct(msg)
 			free(pThis->pszTAG);
 		if(pThis->pszHOSTNAME != NULL)
 			free(pThis->pszHOSTNAME);
+		if(pThis->pszInputName != NULL)
+			free(pThis->pszInputName);
 		if(pThis->pszRcvFrom != NULL)
 			free(pThis->pszRcvFrom);
 		if(pThis->pszRcvFromIP != NULL)
@@ -333,8 +397,12 @@ CODESTARTobjDestruct(msg)
 			rsCStrDestruct(&pThis->pCSPROCID);
 		if(pThis->pCSMSGID != NULL)
 			rsCStrDestruct(&pThis->pCSMSGID);
+#	ifndef HAVE_ATOMIC_BUILTINS
+		MsgUnlock(pThis);
+# 	endif
 		funcDeleteMutex(pThis);
 	} else {
+		MsgUnlock(pThis);
 		pThis = NULL; /* tell framework not to destructing the object! */
 	}
 ENDobjDestruct(msg)
@@ -379,7 +447,7 @@ msg_t* MsgDup(msg_t* pOld)
 	assert(pOld != NULL);
 
 	BEGINfunc
-	if(msgConstruct(&pNew) != RS_RET_OK) {
+	if(msgConstructWithTime(&pNew, &pOld->tTIMESTAMP, pOld->ttGenTime) != RS_RET_OK) {
 		return NULL;
 	}
 
@@ -390,8 +458,7 @@ msg_t* MsgDup(msg_t* pOld)
 	pNew->bParseHOSTNAME = pOld->bParseHOSTNAME;
 	pNew->msgFlags = pOld->msgFlags;
 	pNew->iProtocolVersion = pOld->iProtocolVersion;
-	memcpy(&pNew->tRcvdAt, &pOld->tRcvdAt, sizeof(struct syslogTime));
-	memcpy(&pNew->tTIMESTAMP, &pOld->tTIMESTAMP, sizeof(struct syslogTime));
+	pNew->ttGenTime = pOld->ttGenTime;
 	tmpCOPYSZ(Severity);
 	tmpCOPYSZ(SeverityStr);
 	tmpCOPYSZ(Facility);
@@ -445,6 +512,7 @@ static rsRetVal MsgSerialize(msg_t *pThis, strm_t *pStrm)
 	objSerializeSCALAR(pStrm, iSeverity, SHORT);
 	objSerializeSCALAR(pStrm, iFacility, SHORT);
 	objSerializeSCALAR(pStrm, msgFlags, INT);
+	objSerializeSCALAR(pStrm, ttGenTime, INT);
 	objSerializeSCALAR(pStrm, tRcvdAt, SYSLOGTIME);
 	objSerializeSCALAR(pStrm, tTIMESTAMP, SYSLOGTIME);
 
@@ -453,6 +521,7 @@ static rsRetVal MsgSerialize(msg_t *pThis, strm_t *pStrm)
 	objSerializePTR(pStrm, pszUxTradMsg, PSZ);
 	objSerializePTR(pStrm, pszTAG, PSZ);
 	objSerializePTR(pStrm, pszHOSTNAME, PSZ);
+	objSerializePTR(pStrm, pszInputName, PSZ);
 	objSerializePTR(pStrm, pszRcvFrom, PSZ);
 	objSerializePTR(pStrm, pszRcvFromIP, PSZ);
 
@@ -478,7 +547,7 @@ finalize_it:
 msg_t *MsgAddRef(msg_t *pM)
 {
 	assert(pM != NULL);
-#	ifdef DO_HAVE_ATOMICS
+#	ifdef HAVE_ATOMIC_BUILTINS
 		ATOMIC_INC(pM->iRefCount);
 #	else
 		MsgLock(pM);
@@ -680,6 +749,7 @@ char *getMSG(msg_t *pM)
 char *getPRI(msg_t *pM)
 {
 	int pri;
+	BEGINfunc
 
 	if(pM == NULL)
 		return "";
@@ -699,6 +769,7 @@ char *getPRI(msg_t *pM)
 	}
 	MsgUnlock(pM);
 
+	ENDfunc
 	return (char*)pM->pszPRI;
 }
 
@@ -713,6 +784,7 @@ int getPRIi(msg_t *pM)
 
 char *getTimeReported(msg_t *pM, enum tplFormatTypes eFmt)
 {
+	BEGINfunc
 	if(pM == NULL)
 		return "";
 
@@ -784,11 +856,13 @@ char *getTimeReported(msg_t *pM, enum tplFormatTypes eFmt)
 		MsgUnlock(pM);
 		return(pM->pszTIMESTAMP_SecFrac);
 	}
+	ENDfunc
 	return "INVALID eFmt OPTION!";
 }
 
 char *getTimeGenerated(msg_t *pM, enum tplFormatTypes eFmt)
 {
+	BEGINfunc
 	if(pM == NULL)
 		return "";
 
@@ -860,6 +934,7 @@ char *getTimeGenerated(msg_t *pM, enum tplFormatTypes eFmt)
 		MsgUnlock(pM);
 		return(pM->pszRcvdAt_SecFrac);
 	}
+	ENDfunc
 	return "INVALID eFmt OPTION!";
 }
 
@@ -1219,6 +1294,18 @@ char *getHOSTNAME(msg_t *pM)
 }
 
 
+uchar *getInputName(msg_t *pM)
+{
+	if(pM == NULL)
+		return (uchar*) "";
+	else
+		if(pM->pszInputName == NULL)
+			return (uchar*) "";
+		else
+			return pM->pszInputName;
+}
+
+
 char *getRcvFrom(msg_t *pM)
 {
 	if(pM == NULL)
@@ -1399,6 +1486,19 @@ static int getAPPNAMELen(msg_t *pM)
 	return (pM->pCSAPPNAME == NULL) ? 0 : rsCStrLen(pM->pCSAPPNAME);
 }
 
+/* rgerhards 2008-09-10: set pszInputName in msg object
+ */
+void MsgSetInputName(msg_t *pMsg, char* pszInputName)
+{
+	assert(pMsg != NULL);
+	if(pMsg->pszInputName != NULL)
+		free(pMsg->pszInputName);
+
+	pMsg->iLenInputName = strlen(pszInputName);
+	if((pMsg->pszInputName = malloc(pMsg->iLenInputName + 1)) != NULL) {
+		memcpy(pMsg->pszInputName, pszInputName, pMsg->iLenInputName + 1);
+	}
+}
 
 /* rgerhards 2004-11-16: set pszRcvFrom in msg object
  */
@@ -1580,7 +1680,7 @@ static uchar *getNOW(eNOWType eNow)
 		return NULL;
 	}
 
-	datetime.getCurrTime(&t);
+	datetime.getCurrTime(&t, NULL);
 	switch(eNow) {
 	case NOW_NOW:
 		snprintf((char*) pBuf, tmpBUFSIZE, "%4.4d-%2.2d-%2.2d", t.year, t.month, t.day);
@@ -1685,6 +1785,8 @@ char *MsgGetProp(msg_t *pMsg, struct templateEntry *pTpe,
 		pRes = getRawMsg(pMsg);
 	} else if(!strcmp((char*) pName, "uxtradmsg")) {
 		pRes = getUxTradMsg(pMsg);
+	} else if(!strcmp((char*) pName, "inputname")) {
+		pRes = (char*) getInputName(pMsg);
 	} else if(!strcmp((char*) pName, "fromhost")) {
 		pRes = getRcvFrom(pMsg);
 	} else if(!strcmp((char*) pName, "fromhost-ip")) {
@@ -1772,6 +1874,8 @@ char *MsgGetProp(msg_t *pMsg, struct templateEntry *pTpe,
 			return "***OUT OF MEMORY***";
 		} else
 			*pbMustBeFreed = 1;	/* all of these functions allocate dyn. memory */
+	} else if(!strcmp((char*) pName, "$myhostname")) {
+		pRes = (char*) glbl.GetLocalHostName();
 	} else {
 		/* there is no point in continuing, we may even otherwise render the
 		 * error message unreadable. rgerhards, 2007-07-10
@@ -1809,6 +1913,11 @@ char *MsgGetProp(msg_t *pMsg, struct templateEntry *pTpe,
 				++pFld; /* skip to field terminator */
 			if(*pFld == pTpe->data.field.field_delim) {
 				++pFld; /* eat it */
+				if (pTpe->data.field.field_expand != 0) {
+					while (*pFld == pTpe->data.field.field_delim) {
+						++pFld;
+					}
+				}
 				++iCurrFld;
 			}
 		}
@@ -1906,7 +2015,10 @@ char *MsgGetProp(msg_t *pMsg, struct templateEntry *pTpe,
 				 * potential matches over the string.
 				 */
 				while(!bFound) {
-					if(regexp.regexec(&pTpe->data.field.re, pRes + iOffs, nmatch, pmatch, 0) == 0) {
+					int iREstat;
+					iREstat = regexp.regexec(&pTpe->data.field.re, pRes + iOffs, nmatch, pmatch, 0);
+					dbgprintf("regexec return is %d\n", iREstat);
+					if(iREstat == 0) {
 						if(pmatch[0].rm_so == -1) {
 							dbgprintf("oops ... start offset of successful regexec is -1\n");
 							break;
@@ -1914,6 +2026,8 @@ char *MsgGetProp(msg_t *pMsg, struct templateEntry *pTpe,
 						if(iTry == pTpe->data.field.iMatchToUse) {
 							bFound = 1;
 						} else {
+							dbgprintf("regex found at offset %d, new offset %d, tries %d\n",
+								  iOffs, iOffs + pmatch[0].rm_eo, iTry);
 							iOffs += pmatch[0].rm_eo;
 							++iTry;
 						}
@@ -1921,6 +2035,7 @@ char *MsgGetProp(msg_t *pMsg, struct templateEntry *pTpe,
 						break;
 					}
 				}
+				dbgprintf("regex: end search, found %d\n", bFound);
 				if(!bFound) {
 					/* we got no match! */
 					if(pTpe->data.field.nomatchAction != TPL_REGEX_NOMATCH_USE_WHOLE_FIELD) {
@@ -1930,6 +2045,8 @@ char *MsgGetProp(msg_t *pMsg, struct templateEntry *pTpe,
 						}
 						if(pTpe->data.field.nomatchAction == TPL_REGEX_NOMATCH_USE_DFLTSTR)
 							return "**NO MATCH**";
+						else if(pTpe->data.field.nomatchAction == TPL_REGEX_NOMATCH_USE_ZERO)
+							return "0";
 						else
 							return "";
 					}
@@ -2363,6 +2480,8 @@ rsRetVal MsgSetProperty(msg_t *pThis, var_t *pProp)
 		MsgSetUxTradMsg(pThis, (char*) rsCStrGetSzStrNoNULL(pProp->val.pStr));
 	} else if(isProp("pszTAG")) {
 		MsgSetTAG(pThis, (char*) rsCStrGetSzStrNoNULL(pProp->val.pStr));
+	} else if(isProp("pszInputName")) {
+		MsgSetInputName(pThis, (char*) rsCStrGetSzStrNoNULL(pProp->val.pStr));
 	} else if(isProp("pszRcvFromIP")) {
 		MsgSetRcvFromIP(pThis, rsCStrGetSzStrNoNULL(pProp->val.pStr));
 	} else if(isProp("pszRcvFrom")) {
@@ -2377,6 +2496,8 @@ rsRetVal MsgSetProperty(msg_t *pThis, var_t *pProp)
 		MsgSetPROCID(pThis, (char*) rsCStrGetSzStrNoNULL(pProp->val.pStr));
 	} else if(isProp("pCSMSGID")) {
 		MsgSetMSGID(pThis, (char*) rsCStrGetSzStrNoNULL(pProp->val.pStr));
+ 	} else if(isProp("ttGenTime")) {
+		pThis->ttGenTime = pProp->val.num;
 	} else if(isProp("tRcvdAt")) {
 		memcpy(&pThis->tRcvdAt, &pProp->val.vSyslogTime, sizeof(struct syslogTime));
 	} else if(isProp("tTIMESTAMP")) {
@@ -2425,6 +2546,7 @@ BEGINObjClassInit(msg, 1, OBJ_IS_CORE_MODULE)
 	/* request objects we use */
 	CHKiRet(objUse(var, CORE_COMPONENT));
 	CHKiRet(objUse(datetime, CORE_COMPONENT));
+	CHKiRet(objUse(glbl, CORE_COMPONENT));
 
 	/* set our own handlers */
 	OBJSetMethodHandler(objMethod_SERIALIZE, MsgSerialize);
@@ -2437,7 +2559,5 @@ BEGINObjClassInit(msg, 1, OBJ_IS_CORE_MODULE)
 	funcDeleteMutex = MsgLockingDummy;
 	funcMsgPrepareEnqueue = MsgLockingDummy;
 ENDObjClassInit(msg)
-
-/*
- * vi:set ai:
+/* vim:set ai:
  */

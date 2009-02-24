@@ -1,6 +1,6 @@
 /* This header supplies atomic operations. So far, we rely on GCC's
- * atomic builtins. I have no idea if we can check them via autotools,
- * but I am making the necessary provisioning to live without them if
+ * atomic builtins. During configure, we check if atomic operatons are
+ * available. If they are not, I am making the necessary provisioning to live without them if
  * they are not available. Please note that you should only use the macros
  * here if you think you can actually live WITHOUT an explicit atomic operation,
  * because in the non-presence of them, we simply do it without atomicitiy.
@@ -36,16 +36,30 @@
 #ifndef INCLUDED_ATOMIC_H
 #define INCLUDED_ATOMIC_H
 
-/* set the following to 1 if we have atomic operations (and #undef it otherwise) */
-/* #define DO_HAVE_ATOMICS 1 */
 /* for this release, we disable atomic calls because there seem to be some
  * portability problems and we can not fix that without destabilizing the build.
  * They simply came in too late. -- rgerhards, 2008-04-02
  */
-/* make sure they are not used!
-#define ATOMIC_INC(data) ((void) __sync_fetch_and_add(&data, 1))
-#define ATOMIC_DEC_AND_FETCH(data) __sync_sub_and_fetch(&data, 1)
-*/
-#define ATOMIC_INC(data) (++(data))
+#ifdef HAVE_ATOMIC_BUILTINS
+#	define ATOMIC_INC(data) ((void) __sync_fetch_and_add(&(data), 1))
+#	define ATOMIC_DEC(data) ((void) __sync_sub_and_fetch(&(data), 1))
+#	define ATOMIC_DEC_AND_FETCH(data) __sync_sub_and_fetch(&(data), 1)
+#	define ATOMIC_FETCH_32BIT(data) ((unsigned) __sync_fetch_and_and(&(data), 0xffffffff))
+#	define ATOMIC_STORE_1_TO_32BIT(data) __sync_lock_test_and_set(&(data), 1)
+#else
+	/* note that we gained parctical proof that theoretical problems DO occur
+	 * if we do not properly address them. See this blog post for details:
+	 * http://blog.gerhards.net/2009/01/rsyslog-data-race-analysis.html
+	 * The bottom line is that if there are no atomics available, we should NOT
+	 * simply go ahead and do without them - use mutexes or other things. The
+	 * code needs to be checked against all those cases. -- rgerhards, 2009-01-30
+	 */
+#	warning "atomic builtins not available, using nul operations - rsyslogd will probably be racy!"
+#	define ATOMIC_INC(data) (++(data))
+#	define ATOMIC_DEC(data) (--(data))
+#	define ATOMIC_DEC_AND_FETCH(data) (--(data))
+#	define ATOMIC_FETCH_32BIT(data) (data)
+#	define ATOMIC_STORE_1_TO_32BIT(data) (data) = 1
+#endif
 
 #endif /* #ifndef INCLUDED_ATOMIC_H */

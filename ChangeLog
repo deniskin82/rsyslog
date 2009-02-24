@@ -1,9 +1,187 @@
 ---------------------------------------------------------------------------
-Version 3.21.4  [DEVEL] (rgerhards), 2008-0????
+Version 4.1.5  [DEVEL] (rgerhards), 2009-02-??
+- added new config directive $RepeatedMsgContainsOriginalMsg so that the
+  "last message repeated n times" messages, if generated, may
+  have an alternate format that contains the message that is being repeated
+---------------------------------------------------------------------------
+Version 4.1.4  [DEVEL] (rgerhards), 2009-01-29
+- bugfix: inconsistent use of mutex/atomic operations could cause segfault
+  details are too many, for full analysis see blog post at:
+  http://blog.gerhards.net/2009/01/rsyslog-data-race-analysis.html
+- bugfix: unitialized mutex was used in msg.c:getPRI
+  This was subtle, because getPRI is called as part of the debugging code
+  (always executed) in syslogd.c:logmsg.
+- bufgix: $PreserveFQDN was not properly handled for locally emitted
+  messages
+---------------------------------------------------------------------------
+Version 4.1.3  [DEVEL] (rgerhards), 2008-12-17
+- added $InputTCPServerAddtlFrameDelimiter config directive, which
+  enables to specify an additional, non-standard message delimiter
+  for processing plain tcp syslog. This is primarily a fix for the invalid
+  framing used in Juniper's NetScreen products. Credit to forum user
+  Arv for suggesting this solution.
+- added $InputTCPServerInputName property, which enables a name to be
+  specified that will be available during message processing in the
+  inputname property. This is considered useful for logic that treats
+  messages differently depending on which input received them.
+- added $PreserveFQDN config file directive
+  Enables to use FQDNs in sender names where the legacy default
+  would have stripped the domain part.
+  Thanks to BlinkMind, Inc. http://www.blinkmind.com for sponsoring this
+  development.
+- bugfix: imudp went into an endless loop under some circumstances
+  (but could also leave it under some other circumstances...)
+  Thanks to David Lang and speedfox for reporting this issue.
+---------------------------------------------------------------------------
+Version 4.1.2  [DEVEL] (rgerhards), 2008-12-04
+- bugfix: code did not compile without zlib
+- security bugfix: $AllowedSender was not honored, all senders were
+  permitted instead (see http://www.rsyslog.com/Article322.phtml)
+- security fix: imudp emitted a message when a non-permitted sender
+  tried to send a message to it. This behaviour is operator-configurable.
+  If enabled, a message was emitted each time. That way an attacker could
+  effectively fill the disk via this facility. The message is now
+  emitted only once in a minute (this currently is a hard-coded limit,
+  if someone comes up with a good reason to make it configurable, we
+  will probably do that).
+- doc bugfix: typo in v3 compatibility document directive syntax
+  thanks to Andrej for reporting
+- imported other changes from 3.21.8 and 3.20.1 (see there)
+---------------------------------------------------------------------------
+Version 4.1.1  [DEVEL] (rgerhards), 2008-11-26
+- added $PrivDropToGroup, $PrivDropToUser, $PrivDropToGroupID,
+  $PrivDropToUserID config directives to enable dropping privileges.
+  This is an effort to provide a security enhancement. For the limits of this
+  approach, see http://wiki.rsyslog.com/index.php/Security
+- re-enabled imklog to compile on FreeBSD (brought in from beta)
+---------------------------------------------------------------------------
+Version 4.1.0  [DEVEL] (rgerhards), 2008-11-18
+
+********************************* WARNING *********************************
+This version has a slightly different on-disk format for message entries.
+As a consequence, old queue files being read by this version may have
+an invalid output timestamp, which could result to some malfunction inside
+the output driver. It is recommended to drain queues with the previous
+version before switching to this one.
+********************************* WARNING *********************************
+
+- greatly enhanced performance when compared to v3.
+- added configuration directive "HUPisRestart" which enables to configure
+  HUP to be either a full restart or "just" a leightweight way to
+  close open files.
+- enhanced legacy syslog parser to detect year if part of the timestamp
+  the format is based on what Cisco devices seem to emit.
+- added a setting "$OptimizeForUniprocessor" to enable users to turn off
+  pthread_yield calls which are counter-productive on multiprocessor 
+  machines (but have been shown to be useful on uniprocessors)
+- reordered imudp processing. Message parsing is now done as part of main
+  message queue worker processing (was part of the input thread)
+  This should also improve performance, as potentially more work is
+  done in parallel.
+- bugfix: compressed syslog messages could be slightly mis-uncompressed
+  if the last byte of the compressed record was a NUL
+- added $UDPServerTimeRequery option which enables to work with
+  less acurate timestamps in favor of performance. This enables querying
+  of the time only every n-th time if imudp is running in the tight
+  receive loop (aka receiving messsages at a high rate)
+- doc bugfix: queue doc had wrong parameter name for setting controlling
+  worker thread shutdown period
+- restructured rsyslog.conf documentation
+- bugfix: memory leak in ompgsql
+  Thanks to Ken for providing the patch
+---------------------------------------------------------------------------
+Version 3.21.11 [BETA] (rgerhards), 2009-0?-??
+- build system improvements contributed by Michael Biebl - thx!
+---------------------------------------------------------------------------
+Version 3.21.10 [BETA] (rgerhards), 2009-02-02
+- bugfix: inconsistent use of mutex/atomic operations could cause segfault
+  details are too many, for full analysis see blog post at:
+  http://blog.gerhards.net/2009/01/rsyslog-data-race-analysis.html
+- the string "Do Die" was accidently emited upon exit in non-debug mode
+  This has now been corrected. Thanks to varmojfekoj for the patch.
+- some legacy options were not correctly processed.
+  Thanks to varmojfekoj for the patch.
+- doc bugfix: v3-compatiblity document had typo in config directive
+  thanks to Andrej for reporting this
+---------------------------------------------------------------------------
+Version 3.21.9 [BETA] (rgerhards), 2008-12-04
+- re-release of 3.21.8 with an additional fix, that could also lead
+  to DoS; 3.21.8 has been removed from the official download archives
+- security fix: imudp emitted a message when a non-permitted sender
+  tried to send a message to it. This behaviour is operator-configurable.
+  If enabled, a message was emitted each time. That way an attacker could
+  effectively fill the disk via this facility. The message is now
+  emitted only once in a minute (this currently is a hard-coded limit,
+  if someone comes up with a good reason to make it configurable, we
+  will probably do that).
+---------------------------------------------------------------------------
+Version 3.21.8  [BETA] (rgerhards), 2008-12-04
+- bugfix: imklog did not compile on FreeBSD
+- security bugfix: $AllowedSender was not honored, all senders were
+  permitted instead (see http://www.rsyslog.com/Article322.phtml)
+- merged in all other changes from 3.20.1 (see there)
+---------------------------------------------------------------------------
+Version 3.21.7  [BETA] (rgerhards), 2008-11-11
+- this is the new beta branch, based on the former 3.21.6 devel
+- new functionality: ZERO property replacer nomatch option (from v3-stable)
+---------------------------------------------------------------------------
+Version 3.21.6  [DEVEL] (rgerhards), 2008-10-22
+- consolidated time calls during msg object creation, improves performance
+  and consistency
+- bugfix: solved a segfault condition
+- bugfix: subsecond time properties generated by imfile, imklog and
+  internal messages could be slightly inconsistent
+- bugfix: (potentially big) memory leak on HUP if queues could not be
+  drained before timeout - thanks to David Lang for pointing this out
+- added capability to support multiple module search pathes. Thank
+  to Marius Tomaschewski for providing the patch.
+- bugfix: im3195 did no longer compile
+- improved "make distcheck" by ensuring everything relevant is recompiled
+---------------------------------------------------------------------------
+Version 3.21.5  [DEVEL] (rgerhards), 2008-09-30
+- performance optimization: unnecessary time() calls during message
+  parsing removed - thanks to David Lang for his excellent performance
+  analysis
+- added new capability to property replacer: multiple immediately
+  successive field delimiters are treated as a single one.
+  Thanks to Zhuang Yuyao for the patch.
+- added message property "inputname", which contains the name of the
+  input (module) that generated it. Presence is depending on suport in
+  each input module (else it is blank).
+- added system property "$myhostname", which contains the name of the
+  local host as it knows itself.
+- imported a number of fixes and enhancements from the stable and
+  devel branches, including a fix to a potential segfault on HUP
+  when using UDP listners
+- re-enabled gcc builtin atomic operations and added a proper
+  ./configure check
+- bugfix: potential race condition when adding messages to queue
+  There was a wrong order of mutex lock operations. It is hard to
+  believe that really caused problems, but in theory it could and with
+  threading we often see that theory becomes practice if something is only
+  used long enough on a fast enough machine with enough CPUs ;)
+- cleaned up internal debug system code and made it behave better
+  in regard to multi-threading
+---------------------------------------------------------------------------
+Version 3.21.4  [DEVEL] (rgerhards), 2008-09-04
 - removed compile time fixed message size limit (was 2K), limit can now
   be set via $MaxMessageSize global config directive (finally gotten rid
   of MAXLINE ;))
 - enhanced doc for $ActionExecOnlyEveryNthTimeTimeout
+- integrated a number of patches from 3.18.4, namely
+  - bugfix: order-of magnitude issue with base-10 size definitions
+    in config file parser. Could lead to invalid sizes, constraints
+    etc for e.g. queue files and any other object whose size was specified
+    in base-10 entities. Did not apply to binary entities. Thanks to
+    RB for finding this bug and providing a patch.
+  - bugfix: action was not called when system time was set backwards
+    (until the previous time was reached again). There are still some
+    side-effects when time is rolled back (A time rollback is really a bad
+    thing to do, ideally the OS should issue pseudo time (like NetWare did)
+    when the user tries to roll back time). Thanks to varmojfekoj for this
+    patch.
+  - doc bugfix: rsyslog.conf man page improved and minor nit fixed
+    thanks to Lukas Kuklinek for the patch.
 ---------------------------------------------------------------------------
 Version 3.21.3  [DEVEL] (rgerhards), 2008-08-13
 - added ability to specify flow control mode for imuxsock
@@ -65,7 +243,65 @@ Version 3.21.0  [DEVEL] (rgerhards), 2008-07-18
 - imported all changes from 3.18.1 until today (some quite important,
   see below)
 ---------------------------------------------------------------------------
-Version 3.19.12 [BETA] (rgerhards), 2008-08-25
+Version 3.20.4 [v3-stable] (rgerhards), 2009-02-??
+- bugfix: inconsistent use of mutex/atomic operations could cause segfault
+  details are too many, for full analysis see blog post at:
+  http://blog.gerhards.net/2009/01/rsyslog-data-race-analysis.html
+- bugfix: invalid mutex access in msg.c
+---------------------------------------------------------------------------
+Version 3.20.3 [v3-stable] (rgerhards), 2009-01-19
+- doc bugfix: v3-compatiblity document had typo in config directive
+  thanks to Andrej for reporting this
+- fixed a potential segfault condition with $AllowedSender directive
+  On HUP, the root pointers were not properly cleaned up. Thanks to
+  Michael Biebel, olgoat, and Juha Koho for reporting and analyzing
+  the bug.
+---------------------------------------------------------------------------
+Version 3.20.2 [v3-stable] (rgerhards), 2008-12-04
+- re-release of 3.20.1 with an additional fix, that could also lead
+  to DoS; 3.20.1 has been removed from the official download archives
+- security fix: imudp emitted a message when a non-permitted sender
+  tried to send a message to it. This behaviour is operator-configurable.
+  If enabled, a message was emitted each time. That way an attacker could
+  effectively fill the disk via this facility. The message is now
+  emitted only once in a minute (this currently is a hard-coded limit,
+  if someone comes up with a good reason to make it configurable, we
+  will probably do that).
+---------------------------------------------------------------------------
+Version 3.20.1 [v3-stable] (rgerhards), 2008-12-04
+- security bugfix: $AllowedSender was not honored, all senders were
+  permitted instead
+- enhance: regex nomatch option "ZERO" has been added
+  This allows to return the string 0 if a regular expression is
+  not found. This is probably useful for storing numerical values into
+  database columns.
+- bugfix: memory leak in gtls netstream driver fixed
+  memory was lost each time a TLS session was torn down. This could 
+  result in a considerable memory leak if it happened quite frequently
+  (potential system crash condition)
+- doc update: documented how to specify multiple property replacer
+  options + link to new online regex generator tool added
+- minor bufgfix: very small memory leak in gtls netstream driver
+  around a handful of bytes (< 20) for each HUP
+- improved debug output for regular expressions inside property replacer
+  RE's seem to be a big trouble spot and I would like to have more
+  information inside the debug log. So I decided to add some additional
+  debug strings permanently.
+---------------------------------------------------------------------------
+Version 3.20.0 [v3-stable] (rgerhards), 2008-11-05
+- this is the inital release of the 3.19.x branch as a stable release
+- bugfix: double-free in pctp netstream driver. Thank to varmojfeko
+  for the patch
+---------------------------------------------------------------------------
+Version 3.19.12 [BETA] (rgerhards), 2008-10-16
+- bugfix: subseconds where not correctly extracted from a timestamp
+  if that timestamp did not contain any subsecond information (the
+  resulting string was garbagge but should have been "0", what it
+  now is).
+- increased maximum size of a configuration statement to 4K (was 1K)
+- imported all fixes from the stable branch (quite a lot)
+- bugfix: (potentially big) memory leak on HUP if queues could not be
+  drained before timeout - thanks to David Lang for pointing this out
 ---------------------------------------------------------------------------
 Version 3.19.11 [BETA] (rgerhards), 2008-08-25
 This is a refresh of the beta. No beta-specific fixes have been added.
@@ -228,7 +464,42 @@ Version 3.19.0 (rgerhards), 2008-05-06
 - -c option no longer must be the first option - thanks to varmjofekoj
   for the patch
 ---------------------------------------------------------------------------
-Version 3.18.4 (rgerhards), 2008-09-??
+Version 3.18.7 (rgerhards), 2008-12-??
+=======
+- fixed a potential segfault condition with $AllowedSender directive
+  On HUP, the root pointers were not properly cleaned up. Thanks to
+  Michael Biebel, olgoat, and Juha Koho for reporting and analyzing
+  the bug.
+- some legacy options were not correctly processed.
+  Thanks to varmojfekoj for the patch.
+- doc bugfix: some spelling errors in man pages corrected. Thanks to
+  Geoff Simmons for the patch.
+---------------------------------------------------------------------------
+Version 3.18.6 (rgerhards), 2008-12-08
+- security bugfix: $AllowedSender was not honored, all senders were
+  permitted instead (see http://www.rsyslog.com/Article322.phtml)
+  (backport from v3-stable, v3.20.9)
+- minor bugfix: dual close() call on tcp session closure
+---------------------------------------------------------------------------
+Version 3.18.5 (rgerhards), 2008-10-09
+- bugfix: imudp input module could cause segfault on HUP
+  It did not properly de-init a variable acting as a linked list head.
+  That resulted in trying to access freed memory blocks after the HUP.
+- bugfix:  rsyslogd could hang on HUP
+  because getnameinfo() is not cancel-safe, but was not guarded against
+  being cancelled. pthread_cancel() is routinely being called during
+  HUP processing.
+- bugfix[minor]: if queue size reached light_delay mark, enqueuing
+  could potentially be blocked for a longer period of time, which
+  was not the behaviour desired.
+- doc bugfix: $ActionExecOnlyWhenPreviousIsSuspended was still misspelled
+  as $...OnlyIfPrev... in some parts of the documentation. Thanks to 
+  Lorenzo M. Catucci for reporting this bug.
+- added doc on malformed messages, cause and how to work-around, to the
+  doc set
+- added doc on how to build from source repository
+---------------------------------------------------------------------------
+Version 3.18.4 (rgerhards), 2008-09-18
 - bugfix: order-of magnitude issue with base-10 size definitions
   in config file parser. Could lead to invalid sizes, constraints
   etc for e.g. queue files and any other object whose size was specified
@@ -242,6 +513,21 @@ Version 3.18.4 (rgerhards), 2008-09-??
   patch.
 - doc bugfix: rsyslog.conf man page improved and minor nit fixed
   thanks to Lukas Kuklinek for the patch.
+- bugfix: error code -2025 was used for two different errors. queue full
+  is now -2074 and -2025 is unique again. (did cause no real problem
+  except for troubleshooting)
+- bugfix: default discard severity was incorrectly set to 4, which lead
+  to discard-on-queue-full to be enabled by default. That could cause
+  message loss where non was expected.  The default has now been changed
+  to the correct value of 8, which disables the functionality. This
+  problem applied both to the main message queue and the action queues.
+  Thanks to Raoul Bhatia for pointing out this problem.
+- bugfix: option value for legacy -a option could not be specified,
+  resulting in strange operations. Thanks to Marius Tomaschewski
+  for the patch.
+- bugfix: colon after date should be ignored, but was not. This has
+  now been corrected. Required change to the internal ParseTIMESTAMP3164()
+  interface.
 ---------------------------------------------------------------------------
 Version 3.18.3 (rgerhards), 2008-08-18
 - bugfix: imfile could cause a segfault upon rsyslogd HUP and termination
@@ -864,6 +1150,23 @@ Version 3.10.0 (rgerhards), 2008-01-07
 - compilation without pthreads is no longer supported
 - much cleaner code due to new objects and removal of single-threading
   mode
+---------------------------------------------------------------------------
+Version 2.0.7 V2-STABLE (rgerhards), 2008-??-??
+- bugfix: "$CreateDirs off" also disabled file creation
+  Thanks to William Tisater for analyzing this bug and providing a patch.
+  The actual code change is heavily based on William's patch.
+- bugfix: memory leak in ompgsql
+  Thanks to Ken for providing the patch
+---------------------------------------------------------------------------
+Version 2.0.6 V2-STABLE (rgerhards), 2008-08-07
+- bugfix: memory leaks in rsyslogd, primarily in singlethread mode
+  Thanks to Frederico Nunez for providing the fix
+- bugfix: copy&paste error lead to dangling if - this caused a very minor
+  issue with re-formatting a RFC3164 date when the message was invalidly
+  formatted and had a colon immediately after the date. This was in the
+  code for some years (even v1 had it) and I think it never had any
+  effect at all in practice. Though, it should be fixed - but definitely
+  nothing to worry about.
 ---------------------------------------------------------------------------
 Version 2.0.6 V2-STABLE (rgerhards), 2008-08-07
 - bugfix: IPv6 addresses could not be specified in forwarding actions

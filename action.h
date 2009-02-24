@@ -40,6 +40,8 @@ extern int glbliActionResumeRetryCount;
  */
 struct action_s {
 	time_t	f_time;		/* used for "message repeated n times" - be careful, old, old code */
+	time_t	tActNow;	/* the current time for an action execution. Initially set to -1 and
+				   populated on an as-needed basis. This is a performance optimization. */
 	time_t	tLastExec;	/* time this action was last executed */
 	int	bExecWhenPrevSusp;/* execute only when previous action is suspended? */
 	int	iSecsExecOnceInterval; /* if non-zero, minimum seconds to wait until action is executed again */
@@ -55,7 +57,8 @@ struct action_s {
 	time_t  tLastOccur;	/* time last occurence was seen (for timing them out) */
 	struct modInfo_s *pMod;/* pointer to output module handling this selector */
 	void	*pModData;	/* pointer to module data - content is module-specific */
-	int	f_ReduceRepeated;/* reduce repeated lines 0 - no, 1 - yes */
+	short	bRepMsgHasMsg;	/* "message repeated..." has msg fragment in it (0-no, 1-yes) */
+	short	f_ReduceRepeated;/* reduce repeated lines 0 - no, 1 - yes */
 	int	f_prevcount;	/* repetition cnt of prevline */
 	int	f_repeatcount;	/* number of "repeated" msgs */
 	int	iNumTpls;	/* number of array entries for template element below */
@@ -78,13 +81,12 @@ rsRetVal actionConstruct(action_t **ppThis);
 rsRetVal actionConstructFinalize(action_t *pThis);
 rsRetVal actionDestruct(action_t *pThis);
 rsRetVal actionAddCfSysLineHdrl(void);
-rsRetVal actionTryResume(action_t *pThis);
-rsRetVal actionSuspend(action_t *pThis);
 rsRetVal actionDbgPrint(action_t *pThis);
 rsRetVal actionSetGlobalResumeInterval(int iNewVal);
 rsRetVal actionDoAction(action_t *pAction);
 rsRetVal actionCallAction(action_t *pAction, msg_t *pMsg);
 rsRetVal actionWriteToAction(action_t *pAction);
+rsRetVal actionCallHUPHdlr(action_t *pAction);
 rsRetVal actionClassInit(void);
 rsRetVal addAction(action_t **ppAction, modInfo_t *pMod, void *pModData, omodStringRequest_t *pOMSR, int bSuspended);
 

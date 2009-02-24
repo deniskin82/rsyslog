@@ -1,12 +1,15 @@
 html_files = \
+	index.html \
 	bugs.html \
 	debug.html \
 	features.html \
 	generic_design.html \
 	expression.html \
+	droppriv.html \
 	history.html \
 	how2help.html \
 	install.html \
+	build_from_repo.html \
 	ipv6.html \
 	log_rotation_fix_size.html \
 	manual.html \
@@ -96,6 +99,14 @@ html_files = \
 	omrelp.html \
 	status.html \
 	troubleshoot.html \
+	rsyslog_conf_actions.html \
+	rsyslog_conf_examples.html \
+	rsyslog_conf_filter.html \
+	rsyslog_conf_global.html \
+	rsyslog_conf_modules.html \
+	rsyslog_conf_output.html \
+	rsyslog_conf_templates.html \
+	rsyslog_conf_nomatch.html \
 	src/classes.dia
 
 EXTRA_DIST = $(html_files)

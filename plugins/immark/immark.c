@@ -41,6 +41,7 @@
 #include "cfsysline.h"
 #include "module-template.h"
 #include "errmsg.h"
+#include "msg.h"
 
 MODULE_TYPE_INPUT
 
@@ -76,7 +77,7 @@ CODESTARTrunInput
 	   	 * rgerhards, 2007-12-17
 	   	 */
 		CHKiRet(thrdSleep(pThrd, iMarkMessagePeriod, 0)); /* seconds, micro seconds */
-		logmsgInternal(NO_ERRCODE, LOG_INFO, (uchar*)"-- MARK --", ADDDATE|MARK);
+		logmsgInternal(NO_ERRCODE, LOG_INFO, (uchar*)"-- MARK --", MARK);
 	}
 finalize_it:
 	return iRet;
