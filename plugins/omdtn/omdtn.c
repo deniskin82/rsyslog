@@ -93,12 +93,12 @@ BEGINparseSelectorAct
 CODESTARTparseSelectorAct
 CODE_STD_STRING_REQUESTparseSelectorAct(1)
 	/* first check if this config line is actually for us */
-	if(strncmp((char*) p, ":omstdout:", sizeof(":omstdout:") - 1)) {
+	if(strncmp((char*) p, ":omdtn:", sizeof(":omdtn:") - 1)) {
 		ABORT_FINALIZE(RS_RET_CONFLINE_UNPROCESSED);
 	}
 
 	/* ok, if we reach this point, we have something for us */
-	p += sizeof(":omstdout:") - 1; /* eat indicator sequence  (-1 because of '\0'!) */
+	p += sizeof(":omdtn:") - 1; /* eat indicator sequence  (-1 because of '\0'!) */
 	CHKiRet(createInstance(&pData));
 
 	/* check if a non-standard template is to be applied */
