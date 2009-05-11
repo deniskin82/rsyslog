@@ -888,6 +888,9 @@ finalize_it:
  * allows to construct a locally-generated message. Please note that this
  * function here probably is only an interim solution and that we need to
  * think on the best way to do this.
+ * rgerhards, 2009-05-11: note that LocalHostName may be NULL during initialization,
+ * precisely then when the net loadable module can not be found. Thus we need to
+ * guard against this situation, else we have a segfault.
  */
 rsRetVal
 logmsgInternal(int pri, char *msg, int flags)
@@ -898,8 +901,8 @@ logmsgInternal(int pri, char *msg, int flags)
 	CHKiRet(msgConstruct(&pMsg));
 	MsgSetUxTradMsg(pMsg, msg);
 	MsgSetRawMsg(pMsg, msg);
-	MsgSetHOSTNAME(pMsg, (char*)LocalHostName);
-	MsgSetRcvFrom(pMsg, (char*)LocalHostName);
+	MsgSetHOSTNAME(pMsg, (LocalHostName == NULL) ? "" : (char*)LocalHostName);
+	MsgSetRcvFrom(pMsg, (LocalHostName == NULL) ? "" : (char*)LocalHostName);
 	MsgSetTAG(pMsg, "rsyslogd:");
 	pMsg->iFacility = LOG_FAC(pri);
 	pMsg->iSeverity = LOG_PRI(pri);
