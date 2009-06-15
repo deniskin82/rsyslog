@@ -123,6 +123,9 @@ typedef struct strm_s {
 	int iFlushInterval; /* flush in which interval - 0, no flushing */
 	apc_id_t apcID;    /* id of current Apc request (used for cancelling) */
 	pthread_mutex_t mut;/* mutex for flush in async mode */
+	/* lowres time variables (save us from calling time() too often) */
+	time_t ttPrev;
+	int iSameCnt;
 	/* support for omfile size-limiting commands, special counters, NOT persisted! */
 	off_t	iSizeLimit;	/* file size limit, 0 = no limit */
 	uchar	*pszSizeLimitCmd;	/* command to carry out when size limit is reached */

@@ -48,12 +48,14 @@
 #include "stream.h"
 #include "unicode-helper.h"
 #include "module-template.h"
+#include "datetime.h"
 #include "apc.h"
 
 /* static data */
 DEFobjStaticHelpers
 DEFobjCurrIf(zlibw)
 DEFobjCurrIf(apc)
+DEFobjCurrIf(datetime)
 
 /* forward definitions */
 static rsRetVal strmFlush(strm_t *pThis);
@@ -999,12 +1001,15 @@ static inline rsRetVal
 scheduleFlushRequest(strm_t *pThis)
 {
 	apc_t *pApc;
+	time_t ttNow;
 	DEFiRet;
 
 	CHKiRet(apc.CancelApc(pThis->apcID));
-dbgprintf("XXX: requesting to add apc!\n");
+	datetime.GetLowresTime(&ttNow, &pThis->ttPrev, 16, &pThis->iSameCnt); // TODO: make requery interval configurable?
+dbgprintf("XXX: requesting to add apc, time=%ld\n", (long) ttNow);
 	CHKiRet(apc.Construct(&pApc));
 	CHKiRet(apc.SetProcedure(pApc, (void (*)(void*, void*))flushApc));
+	CHKiRet(apc.SetExecTime(pApc, ttNow + pThis->iFlushInterval));
 	CHKiRet(apc.SetParam1(pApc, pThis));
 	CHKiRet(apc.ConstructFinalize(pApc, &pThis->apcID));
 
@@ -1386,6 +1391,7 @@ ENDobjQueryInterface(strm)
 BEGINObjClassInit(strm, 1, OBJ_IS_CORE_MODULE)
 	/* request objects we use */
 	CHKiRet(objUse(apc, CORE_COMPONENT));
+	CHKiRet(objUse(datetime, CORE_COMPONENT));
 
 	OBJSetMethodHandler(objMethod_SERIALIZE, strmSerialize);
 	OBJSetMethodHandler(objMethod_SETPROPERTY, strmSetProperty);

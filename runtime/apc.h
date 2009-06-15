@@ -43,6 +43,7 @@ BEGINinterface(apc) /* name must also be changed in ENDinterface macro! */
 	rsRetVal (*ConstructFinalize)(apc_t *pThis, apc_id_t *);
 	rsRetVal (*Destruct)(apc_t **ppThis);
 	rsRetVal (*SetProcedure)(apc_t *pThis, void (*pProc)(void*, void*));
+	rsRetVal (*SetExecTime)(apc_t *pThis, time_t);
 	rsRetVal (*SetParam1)(apc_t *pThis, void *);
 	rsRetVal (*SetParam2)(apc_t *pThis, void *);
 	rsRetVal (*CancelApc)(apc_id_t);

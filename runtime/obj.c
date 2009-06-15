@@ -1314,6 +1314,7 @@ objClassInit(modInfo_t *pModInfo)
 	CHKiRet(objGetObjInterface(&obj)); /* get ourselves ;) */
 
 	/* init classes we use (limit to as few as possible!) */
+	CHKiRet(datetimeClassInit(pModInfo));
 	CHKiRet(apcClassInit(pModInfo));
 	CHKiRet(errmsgClassInit(pModInfo));
 	CHKiRet(cfsyslineInit());

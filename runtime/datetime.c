@@ -43,14 +43,35 @@
 #include "sysvar.h"
 #include "srUtils.h"
 #include "stringbuf.h"
-#include "errmsg.h"
 
 /* static data */
 DEFobjStaticHelpers
-DEFobjCurrIf(errmsg)
 
 
 /* ------------------------------ methods ------------------------------ */
+
+
+/* get the "lowRes" timer. This is primarily a facility to help
+ * prevent too-frequent time calls. It is provided four parameters:
+ * a pointer to a time_t that will receive the current time,
+ * a pointer to a time_t that contains the previous time 
+ * the number of iterations in a row that we can accept the old time
+ * a pointer to an initial work area, which MUST be set to zero
+ *      in the initial call.
+ * rgerhards, 2009-06-15
+ */
+void
+GetLowresTime(time_t *ptt, time_t *pttPrev, int iNbrSame, int *piSameCnt)
+{
+	assert(ptt != NULL);
+	assert(pttPrev != NULL);
+	assert(piSameCnt != NULL);
+	
+	if(*piSameCnt++ % iNbrSame == 0)
+		time(pttPrev);
+
+	*ptt = *pttPrev;
+}
 
 
 /**
@@ -730,6 +751,7 @@ CODESTARTobjQueryInterface(datetime)
 	 * work here (if we can support an older interface version - that,
 	 * of course, also affects the "if" above).
 	 */
+	pIf->GetLowresTime = GetLowresTime;
 	pIf->getCurrTime = getCurrTime;
 	pIf->ParseTIMESTAMP3339 = ParseTIMESTAMP3339;
 	pIf->ParseTIMESTAMP3164 = ParseTIMESTAMP3164;
@@ -748,7 +770,6 @@ ENDobjQueryInterface(datetime)
  */
 BEGINAbstractObjClassInit(datetime, 1, OBJ_IS_CORE_MODULE) /* class, version */
 	/* request objects we use */
-	CHKiRet(objUse(errmsg, CORE_COMPONENT));
 
 ENDObjClassInit(datetime)
 

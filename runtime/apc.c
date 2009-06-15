@@ -294,7 +294,6 @@ apcConstructFinalize(apc_t *pThis, apc_id_t *pID)
 	BEGIN_MTX_PROTECTED_OPERATIONS_UNCOND(&listMutex);
 	insertApc(pThis, pID);
 	END_MTX_PROTECTED_OPERATIONS_UNCOND(&listMutex);
-RUNLOG_STR("apcConstructFinalize post mutex unlock\n");
 	RETiRet;
 }
 
@@ -305,6 +304,13 @@ SetProcedure(apc_t *pThis, void (*pProc)(void*, void*))
 {
 	ISOBJ_TYPE_assert(pThis, apc);
 	pThis->pProc = pProc;
+	return RS_RET_OK;
+}
+static rsRetVal
+SetExecTime(apc_t *pThis, time_t ttExec)
+{
+	ISOBJ_TYPE_assert(pThis, apc);
+	pThis->ttExec = ttExec;
 	return RS_RET_OK;
 }
 static rsRetVal
@@ -339,6 +345,25 @@ CancelApc(apc_id_t id)
 }
 
 
+/* Run the Apc system. This is will execute Apcs until processing is finished. This
+ * finished state is indicated by the pbIsFinished pointer passed to us. If it is 0,
+ * we wait for actions. If it is non-zero, we immediately terminate, NOT executing
+ * any of the remaining apc calls.
+ * Note: we do NOT synchronize access to *pbIsFinished, as that would further slow us down.
+ */
+static rsRetVal
+doApcExecLoop(int *pbIsFinished)
+{
+	DEFiRet;
+	
+	while(!*pbIsFinished) {
+		execScheduled();
+	}
+
+	RETiRet;
+}
+
+
 /* debugprint for the apc object */
 BEGINobjDebugPrint(apc) /* be sure to specify the object type also in END and CODESTART macros! */
 CODESTARTobjDebugPrint(apc)
@@ -364,6 +389,7 @@ CODESTARTobjQueryInterface(apc)
 	pIf->Destruct = apcDestruct;
 	pIf->DebugPrint = apcDebugPrint;
 	pIf->CancelApc = CancelApc;
+	pIf->SetExecTime = SetExecTime;
 	pIf->SetProcedure = SetProcedure;
 	pIf->SetParam1 = SetParam1;
 	pIf->SetParam2 = SetParam2;
