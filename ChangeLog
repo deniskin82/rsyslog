@@ -1,5 +1,8 @@
 ---------------------------------------------------------------------------
 Version 5.3.1  [DEVEL] (rgerhards), 2009-09-??
+
+BRANCH INTENDED TO IMPLEMENT AVLTREE CLASS, at first for DNS cache
+
 ---------------------------------------------------------------------------
 Version 5.3.0  [DEVEL] (rgerhards), 2009-09-14
 - begun to add simple GUI programs to gain insight into running rsyslogd

@@ -1,0 +1,14 @@
+# a simple test for the avltree class (single RR rotation)
+# note that the out: part has a string that is the result of a
+# bfs traversal, with dashes in between the node values. It is
+# recommended to place everything on one line, else watch the
+# spacing VERY carfully!
+add:
+1
+2
+3
+4
+$$$
+out:
+:1:4:3:2:
+$$$

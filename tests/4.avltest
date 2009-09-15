@@ -1,0 +1,17 @@
+# simple test for insert/double RL rotation
+# (left side inner subtree gets too deep)
+# note that the out: part has a string that is the result of a
+# postorder traversal, with dashes in between the node values. It is
+# recommended to place everything on one line, else watch the
+# spacing VERY carfully!
+add:
+40
+30
+20
+50
+32
+36
+$$$
+out:
+:20:30:36:50:40:32:
+$$$

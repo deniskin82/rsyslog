@@ -122,6 +122,7 @@ typedef struct vmstk_s vmstk_t;
 typedef struct batch_obj_s batch_obj_t;
 typedef struct batch_s batch_t;
 typedef struct wtp_s wtp_t;
+typedef struct avltree_s avltree_t;
 typedef rsRetVal (*prsf_t)(struct vmstk_s*, int);	/* pointer to a RainerScript function */
 typedef uint64 qDeqID;	/* queue Dequeue order ID. 32 bits is considered dangerously few */
 
@@ -384,6 +385,7 @@ enum rsRetVal_				/** return value. All methods return this if not specified oth
 	RS_RET_NO_SRCNAME_TPL = -2143, /**< sourcename template was not specified where one was needed (omudpspoof spoof addr) */
 	RS_RET_HOST_NOT_SPECIFIED = -2144, /**< (target) host was not specified where it was needed */
 	RS_RET_ERR_LIBNET_INIT = -2145, /**< error initializing libnet */
+	RS_RET_NO_KEY2STR = -2146, /**< no function to convert key to string is set, but required */
 
 	/* RainerScript error messages (range 1000.. 1999) */
 	RS_RET_SYSVAR_NOT_FOUND = 1001, /**< system variable could not be found (maybe misspelled) */

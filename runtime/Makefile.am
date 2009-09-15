@@ -78,6 +78,8 @@ librsyslog_la_SOURCES = \
 	prop.h \
 	cfsysline.c \
 	cfsysline.h \
+	avltree.c \
+	avltree.h \
 	\
 	\
 	../action.h \

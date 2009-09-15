@@ -1,5 +1,5 @@
 if ENABLE_TESTBENCH
-TESTRUNS = rt_init rscript
+TESTRUNS = rt_init rscript avltree
 check_PROGRAMS = $(TESTRUNS) ourtail nettester tcpflood chkseq
 TESTS = $(TESTRUNS) cfg.sh \
 	arrayqueue.sh \
@@ -34,6 +34,7 @@ DISTCLEANFILES=rsyslog.pid '$(abs_top_builddir)'/DiagTalker.class
 test_files = testbench.h runtime-dummy.c
 
 EXTRA_DIST= 1.rstest 2.rstest 3.rstest err1.rstest \
+	   1.avltest 2.avltest 3.avltest 4.avltest \
 	   validation-run.sh \
 	   testsuites/invalid.conf \
 	   testsuites/valid.conf \
@@ -155,3 +156,8 @@ rscript_SOURCES = rscript.c getline.c $(test_files)
 rscript_CPPFLAGS =  -I$(top_srcdir) $(PTHREADS_CFLAGS) $(RSRT_CFLAGS)
 rscript_LDADD = $(RSRT_LIBS) $(ZLIB_LIBS) $(PTHREADS_LIBS) $(SOL_LIBS)
 rscript_LDFLAGS = -export-dynamic
+
+avltree_SOURCES = avltree.c getline.c $(test_files)
+avltree_CPPFLAGS =  -I$(top_srcdir) $(PTHREADS_CFLAGS) $(RSRT_CFLAGS)
+avltree_LDADD = $(RSRT_LIBS) $(ZLIB_LIBS) $(PTHREADS_LIBS) $(SOL_LIBS)
+avltree_LDFLAGS = -export-dynamic

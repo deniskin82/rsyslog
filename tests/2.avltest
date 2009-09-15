@@ -1,0 +1,14 @@
+# a simple test for the avltree class (single LL rotation)
+# note that the out: part has a string that is the result of a
+# postorder traversal, with dashes in between the node values. It is
+# recommended to place everything on one line, else watch the
+# spacing VERY carfully!
+add:
+4
+3
+2
+1
+$$$
+out:
+:1:2:4:3:
+$$$

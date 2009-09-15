@@ -1,0 +1,16 @@
+# simple test for insert/double LR rotation
+# note that the out: part has a string that is the result of a
+# postorder traversal, with dashes in between the node values. It is
+# recommended to place everything on one line, else watch the
+# spacing VERY carfully!
+add:
+40
+30
+20
+10
+22
+26
+$$$
+out:
+:10:20:26:40:30:22:
+$$$

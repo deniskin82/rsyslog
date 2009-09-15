@@ -80,6 +80,7 @@
 #include "prop.h"
 #include "rule.h"
 #include "ruleset.h"
+#include "avltree.h"
 
 /* forward definitions */
 static rsRetVal dfltErrLogger(int, uchar *errMsg);
@@ -183,6 +184,8 @@ rsrtInit(char **ppErrObj, obj_if_t *pObjIF)
 		CHKiRet(qqueueClassInit(NULL));
 		if(ppErrObj != NULL) *ppErrObj = "conf";
 		CHKiRet(confClassInit(NULL));
+		if(ppErrObj != NULL) *ppErrObj = "avltree";
+		CHKiRet(avltreeClassInit(NULL));
 
 		/* dummy "classes" */
 		if(ppErrObj != NULL) *ppErrObj = "str";
