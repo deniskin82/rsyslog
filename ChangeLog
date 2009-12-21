@@ -1,4 +1,7 @@
 ---------------------------------------------------------------------------
+- experimental: synced access to dynafile cache in an effort to track
+  down some segfault condition. This will probably be removed again.
+---------------------------------------------------------------------------
 Version 4.5.7  [v4-beta] (rgerhards), 2009-11-18
 - added a so-called "On Demand Debug" mode, in which debug output can
   be generated only after the process has started, but not right from
