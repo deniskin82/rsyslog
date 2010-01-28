@@ -12,7 +12,7 @@ lmtcpsrv_la_SOURCES = \
 	tcps_sess.h \
 	tcpsrv.c \
 	tcpsrv.h
-lmtcpsrv_la_CPPFLAGS = $(PTHREADS_CFLAGS) $(RSRT_CFLAGS)
+lmtcpsrv_la_CPPFLAGS = $(PTHREADS_CFLAGS) $(RSRT_CFLAGS) $(MUDFLAP_CFLAGS)
 lmtcpsrv_la_LDFLAGS = -module -avoid-version
 lmtcpsrv_la_LIBADD = 
 
@@ -22,7 +22,7 @@ lmtcpsrv_la_LIBADD =
 lmtcpclt_la_SOURCES = \
 	tcpclt.c \
 	tcpclt.h
-lmtcpclt_la_CPPFLAGS = $(PTHREADS_CFLAGS) $(RSRT_CFLAGS)
+lmtcpclt_la_CPPFLAGS = $(PTHREADS_CFLAGS) $(RSRT_CFLAGS) $(MUDFLAP_CFLAGS)
 lmtcpclt_la_LDFLAGS = -module -avoid-version
 lmtcpclt_la_LIBADD = 
 
@@ -34,7 +34,7 @@ endif # if ENABLE_INET
 if ENABLE_GSSAPI
 pkglib_LTLIBRARIES += lmgssutil.la
 lmgssutil_la_SOURCES = gss-misc.c gss-misc.h
-lmgssutil_la_CPPFLAGS = $(PTHREADS_CFLAGS) $(RSRT_CFLAGS)
+lmgssutil_la_CPPFLAGS = $(PTHREADS_CFLAGS) $(RSRT_CFLAGS) $(MUDFLAP_CFLAGS)
 lmgssutil_la_LDFLAGS = -module -avoid-version
 lmgssutil_la_LIBADD = $(GSS_LIBS)
 endif

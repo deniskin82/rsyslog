@@ -390,6 +390,25 @@ if test "$enable_valgrind" = "yes"; then
 fi
 
 
+# mudflap
+AC_ARG_ENABLE(mudflap,
+        [AS_HELP_STRING([--enable-mudflap],[Enable mudflap support @<:@default=no@:>@])],
+        [case "${enableval}" in
+         yes) enable_mudflap="yes" ;;
+          no) enable_mudflap="no" ;;
+           *) AC_MSG_ERROR(bad value ${enableval} for --enable-mudflap) ;;
+         esac],
+        [enable_mudflap="no"]
+)
+if test "$enable_mudflap" = "yes"; then
+        MUDFLAP_CFLAGS="-fmudflapth"
+        MUDFLAP_LIBS="-fmudflapth -lmudflapth"
+        AC_DEFINE(MUDFLAP, 1, [Defined if mudflap support is to be enabled.])
+fi
+AC_SUBST(MUDFLAP_CFLAGS)
+AC_SUBST(MUDFLAP_LIBS)
+
+
 # compile diagnostic tools (small helpers usually not needed)
 AC_ARG_ENABLE(diagtools,
         [AS_HELP_STRING([--enable-diagtools],[Enable diagnostic tools @<:@default=no@:>@])],
@@ -874,5 +893,6 @@ echo "    Testbench enabled:                        $enable_testbench"
 echo "    Debug mode enabled:                       $enable_debug"
 echo "    Runtime Instrumentation enabled:          $enable_rtinst"
 echo "    Diagnostic tools enabled:                 $enable_diagtools"
+echo "    mudflap enabled:                          $enable_mudflap"
 echo "    Valgrind support settings enabled:        $enable_valgrind"
 echo

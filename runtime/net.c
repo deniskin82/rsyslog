@@ -1609,8 +1609,26 @@ ENDmodExit
 
 
 BEGINqueryEtryPt
-CODESTARTqueryEtryPt
-CODEqueryEtryPt_STD_LIB_QUERIES
+//CODESTARTqueryEtryPt
+	
+
+#warning "code instrumentation must be removed after mudflap works!"
+	if((name == NULL) || (pEtryPoint == NULL)) {
+		ENDfunc 
+		return RS_RET_PARAM_ERROR;
+	} 
+	*pEtryPoint = NULL;
+
+	if(!strcmp((char*) name, "modExit")) {
+		*pEtryPoint = modExit;
+	} else if(!strcmp((char*) name, "modGetID")) {
+		*pEtryPoint = modGetID;
+	} else if(!strcmp((char*) name, "getType")) {
+		*pEtryPoint = modGetType;
+	}
+
+
+//CODEqueryEtryPt_STD_LIB_QUERIES
 ENDqueryEtryPt
 
 

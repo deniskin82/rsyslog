@@ -2786,6 +2786,11 @@ static void printVersion(void)
 #else
 	printf("\tRuntime Instrumentation (slow code):\tNo\n");
 #endif
+#ifdef	MUDFLAP
+	printf("\tmudflap enabled (debug aid):\t\tYes\n");
+#else
+	printf("\tmudflap enabled (debug aid):\t\tNo\n");
+#endif
 	printf("\nSee http://www.rsyslog.com for more information.\n");
 }
 

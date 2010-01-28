@@ -364,7 +364,8 @@ doModInit(rsRetVal (*modInit)(int, int*, rsRetVal(**)(), rsRetVal(*)(), modInfo_
 	DEFiRet;
 	rsRetVal localRet;
 	modInfo_t *pNew = NULL;
-	rsRetVal (*modGetType)(eModType_t *pType);
+	//rsRetVal (*modGetType)(eModType_t *pType);
+	rsRetVal (*modGetType)();
 
 	assert(modInit != NULL);
 
@@ -382,6 +383,7 @@ doModInit(rsRetVal (*modInit)(int, int*, rsRetVal(**)(), rsRetVal(*)(), modInfo_
 	/* We now poll the module to see what type it is. We do this only once as this
 	 * can never change in the lifetime of an module. -- rgerhards, 2007-12-14
 	 */
+printf("sizeof ptr to modGetType %d, mogGetType ptr itself %d \n", sizeof(&modGetType), sizeof(modGetType));
 	CHKiRet((*pNew->modQueryEtryPt)((uchar*)"getType", &modGetType));
 	CHKiRet((*modGetType)(&pNew->eType));
 	dbgprintf("module of type %d being loaded.\n", pNew->eType);
