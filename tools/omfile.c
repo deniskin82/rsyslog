@@ -47,7 +47,6 @@
 #include <ctype.h>
 #include <libgen.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/file.h>
 
 #ifdef OS_SOLARIS
@@ -128,7 +127,6 @@ typedef struct _instanceData {
 	 * pointer points to the overall structure.
 	 */
 	dynaFileCacheEntry **dynCache;
-	pthread_mutex_t mutDynCache;	/* keep cache ops atomic (probably needed for HUP...) */
 	off_t	iSizeLimit;		/* file size limit, 0 = no limit */
 	uchar	*pszSizeLimitCmd;	/* command to carry out when size limit is reached */
 	int 	iZipLevel;		/* zip mode to use for this selector */
@@ -316,11 +314,9 @@ dynaFileFreeCacheEntries(instanceData *pData)
 	ASSERT(pData != NULL);
 
 	BEGINfunc;
-	d_pthread_mutex_lock(&pData->mutDynCache);
 	for(i = 0 ; i < pData->iCurrCacheSize ; ++i) {
 		dynaFileDelCacheEntry(pData->dynCache, i, 1);
 	}
-	d_pthread_mutex_unlock(&pData->mutDynCache);
 	ENDfunc;
 }
 
@@ -448,12 +444,6 @@ prepareDynFile(instanceData *pData, uchar *newFileName, unsigned iMsgOpts)
 	ASSERT(pData != NULL);
 	ASSERT(newFileName != NULL);
 
-	// TODO: we do experimentally lock the dynaCache mutex. This may not really be necessary,
-	// but the current thinking is it could solve a race during some situations. So it is worth
-	// a try. We should remove the mutDynCache and associated code if it turns out not to be
-	// strictly necessary -- rgerhards, 2009-12-21.
-	d_pthread_mutex_lock(&pData->mutDynCache);
-
 	pCache = pData->dynCache;
 
 	/* first check, if we still have the current file
@@ -533,7 +523,6 @@ prepareDynFile(instanceData *pData, uchar *newFileName, unsigned iMsgOpts)
 	DBGPRINTF("Added new entry %d for file cache, file '%s'.\n", iFirstFree, newFileName);
 
 finalize_it:
-	d_pthread_mutex_unlock(&pData->mutDynCache);
 	RETiRet;
 }
 
@@ -606,9 +595,6 @@ CODESTARTfreeInstance
 		dynaFileFreeCache(pData);
 	} else if(pData->pStrm != NULL)
 		strm.Destruct(&pData->pStrm);
-	// TODO: we should only initialize and destroy this mutex when it turns out to 
-	// be actually needed. -- rgerhards, 2009-12-21
-	pthread_mutex_destroy(&pData->mutDynCache);
 ENDfreeInstance
 
 
@@ -706,7 +692,6 @@ CODESTARTparseSelectorAct
 	pData->bFlushOnTXEnd = bFlushOnTXEnd;
 	pData->iIOBufSize = (int) iIOBufSize;
 	pData->iFlushInterval = iFlushInterval;
-	pthread_mutex_init(&pData->mutDynCache, NULL);
 
 	if(pData->bDynamicName == 0) {
 		/* try open and emit error message if not possible. At this stage, we ignore the
