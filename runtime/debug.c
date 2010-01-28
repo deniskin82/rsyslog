@@ -970,6 +970,8 @@ BEGINfunc
 ENDfunc
 }
 
+
+#ifdef RTINST
 /* handler called when a function is entered. This function creates a new
  * funcDB on the heap if the passed-in pointer is NULL.
  */
@@ -1094,6 +1096,7 @@ void dbgExitFunc(dbgFuncDB_t *pFuncDB, int iStackPtrRestore, int iRet)
 		pThrd->stackPtr = 0;
 	}
 }
+#endif /* #ifdef RTINST */
 
 
 /* externally-callable handler to record the last exec location. We use a different function
