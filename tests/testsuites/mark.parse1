@@ -5,3 +5,7 @@
 # and the next one as an extreme case (note the absence of PRI)
 Feb 18 16:01:59 serverX -- MARK --
 13,user,notice,Feb 18 16:01:59,serverX,--,--, MARK --
+# and the one below is also a *real-life* example, although I have
+# to admit it's a candidate for the most ugly syslog message ever...
+<198>-- MARK --
+

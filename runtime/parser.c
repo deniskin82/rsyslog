@@ -448,6 +448,7 @@ ParsePRI(msg_t *pMsg)
 	}
 	pMsg->iFacility = LOG_FAC(pri);
 	pMsg->iSeverity = LOG_PRI(pri);
+dbgprintf("parser.c: set facility %d, severity %d, parsed pri %d\n", pMsg->iFacility, pMsg->iSeverity, pri);
 	MsgSetAfterPRIOffs(pMsg, msg - pMsg->pszRawMsg);
 	RETiRet;
 }

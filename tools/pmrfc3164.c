@@ -80,6 +80,7 @@ BEGINparse
 	uchar bufParseHOSTNAME[CONF_TAG_HOSTNAME];
 CODESTARTparse
 	dbgprintf("Message will now be parsed by the legacy syslog parser (one size fits all... ;)).\n");
+dbgprintf("pmrfc3164.c: on entry: facility %d, severity %d\n", pMsg->iFacility, pMsg->iSeverity);
 	assert(pMsg != NULL);
 	assert(pMsg->pszRawMsg != NULL);
 	lenMsg = pMsg->iLenRawMsg - (pMsg->offAfterPRI + 1);
@@ -193,6 +194,7 @@ CODESTARTparse
 
 	/* The rest is the actual MSG */
 	MsgSetMSGoffs(pMsg, p2parse - pMsg->pszRawMsg);
+dbgprintf("pmrfc3164.c: on exit: facility %d, severity %d\n", pMsg->iFacility, pMsg->iSeverity);
 ENDparse
 
 
