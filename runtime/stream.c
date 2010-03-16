@@ -220,7 +220,7 @@ doPhysOpen(strm_t *pThis)
 		char errStr[1024];
 		int err = errno;
 		rs_strerror_r(err, errStr, sizeof(errStr));
-		dbgoprint((obj_t*) pThis, "open error %d, file '%s': %s\n", errno, pThis->pszCurrFName, errStr);
+		DBGOPRINT((obj_t*) pThis, "open error %d, file '%s': %s\n", errno, pThis->pszCurrFName, errStr);
 		if(err == ENOENT)
 			ABORT_FINALIZE(RS_RET_FILE_NOT_FOUND);
 		else
@@ -278,11 +278,26 @@ static rsRetVal strmOpenFile(strm_t *pThis)
 		pThis->iCurrOffs = offset;
 	}
 
-	dbgoprint((obj_t*) pThis, "opened file '%s' for %s as %d\n", pThis->pszCurrFName,
+	DBGOPRINT((obj_t*) pThis, "opened file '%s' for %s as %d\n", pThis->pszCurrFName,
 		  (pThis->tOperationsMode == STREAMMODE_READ) ? "READ" : "WRITE", pThis->fd);
 
 finalize_it:
 	RETiRet;
+}
+
+
+/* stop the writer thread (we MUST be runnnig asynchronously when this method
+ * is called!). Note that the mutex must be locked! -- rgerhards, 2009-07-06
+ */
+static inline void
+stopWriter(strm_t *pThis)
+{
+	BEGINfunc
+	pThis->bStopWriter = 1;
+	pthread_cond_signal(&pThis->notEmpty);
+	d_pthread_mutex_unlock(&pThis->mut);
+	pthread_join(pThis->writerThreadID, NULL);
+	ENDfunc
 }
 
 
@@ -296,8 +311,11 @@ strmWaitAsyncWriterDone(strm_t *pThis)
 	BEGINfunc
 	if(pThis->bAsyncWrite) {
 		/* awake writer thread and make it write out everything */
+dbgprintf("XXX: waitAsyncWriterdone pre signal\n");
 		pthread_cond_signal(&pThis->notEmpty);
+dbgprintf("XXX: waitAsyncWriterdone pre wait\n");
 		d_pthread_cond_wait(&pThis->isEmpty, &pThis->mut);
+dbgprintf("XXX: waitAsyncWriterdone post wait\n");
 	}
 	ENDfunc
 }
@@ -316,12 +334,14 @@ static rsRetVal strmCloseFile(strm_t *pThis)
 	DEFiRet;
 
 	ASSERT(pThis != NULL);
-	dbgoprint((obj_t*) pThis, "file %d closing\n", pThis->fd);
+//xxx	DBGOPRINT((obj_t*) pThis, "file %d(%s) closing\n", pThis->fd,
+//xxx		  (pThis->pszFName == NULL) ? "N/A" : (char*)pThis->pszFName);
 
 	if(pThis->tOperationsMode != STREAMMODE_READ) {
 		strmFlush(pThis);
 		if(pThis->bAsyncWrite) {
-			strmWaitAsyncWriterDone(pThis);
+			//strmWaitAsyncWriterDone(pThis);
+			stopWriter(pThis);
 		}
 	}
 
@@ -441,7 +461,7 @@ strmHandleEOF(strm_t *pThis)
 		case STREAMTYPE_FILE_CIRCULAR:
 			/* we have multiple files and need to switch to the next one */
 			/* TODO: think about emulating EOF in this case (not yet needed) */
-			dbgoprint((obj_t*) pThis, "file %d EOF\n", pThis->fd);
+			DBGOPRINT((obj_t*) pThis, "file %d EOF\n", pThis->fd);
 			CHKiRet(strmNextFile(pThis));
 			break;
 		case STREAMTYPE_FILE_MONITOR:
@@ -473,7 +493,7 @@ strmReadBuf(strm_t *pThis)
 		 */
 		CHKiRet(strmOpenFile(pThis));
 		iLenRead = read(pThis->fd, pThis->pIOBuf, pThis->sIOBufSize);
-		dbgoprint((obj_t*) pThis, "file %d read %ld bytes\n", pThis->fd, iLenRead);
+		DBGOPRINT((obj_t*) pThis, "file %d read %ld bytes\n", pThis->fd, iLenRead);
 		if(iLenRead == 0) {
 			CHKiRet(strmHandleEOF(pThis));
 		} else if(iLenRead < 0)
@@ -505,7 +525,7 @@ static rsRetVal strmReadChar(strm_t *pThis, uchar *pC)
 	ASSERT(pThis != NULL);
 	ASSERT(pC != NULL);
 
-	/* DEV debug only: dbgoprint((obj_t*) pThis, "strmRead index %d, max %d\n", pThis->iBufPtr, pThis->iBufPtrMax); */
+	/* DEV debug only: DBGOPRINT((obj_t*) pThis, "strmRead index %d, max %d\n", pThis->iBufPtr, pThis->iBufPtrMax); */
 	if(pThis->iUngetC != -1) {	/* do we have an "unread" char that we need to provide? */
 		*pC = pThis->iUngetC;
 		++pThis->iCurrOffs; /* one more octet read */
@@ -638,6 +658,7 @@ static rsRetVal strmConstructFinalize(strm_t *pThis)
 		pThis->bAsyncWrite = 1;
 	}
 
+dbgprintf("XXX: strmConstructFinalize %s, bAsyncWrite %d, iFlushInterval %d\n", pThis->pszFName, pThis->bAsyncWrite, pThis->iFlushInterval);
 	/* if we work asynchronously, we need a couple of synchronization objects */
 	if(pThis->bAsyncWrite) {
 		pthread_mutex_init(&pThis->mut, 0);
@@ -662,20 +683,6 @@ finalize_it:
 }
 
 
-/* stop the writer thread (we MUST be runnnig asynchronously when this method
- * is called!). Note that the mutex must be locked! -- rgerhards, 2009-07-06
- */
-static inline void
-stopWriter(strm_t *pThis)
-{
-	BEGINfunc
-	pThis->bStopWriter = 1;
-	pthread_cond_signal(&pThis->notEmpty);
-	d_pthread_mutex_unlock(&pThis->mut);
-	pthread_join(pThis->writerThreadID, NULL);
-	ENDfunc
-}
-
 
 /* destructor for the strm object */
 BEGINobjDestruct(strm) /* be sure to specify the object type also in END and CODESTART macros! */
@@ -685,6 +692,7 @@ CODESTARTobjDestruct(strm)
 		/* Note: mutex will be unlocked in stopWriter! */
 		d_pthread_mutex_lock(&pThis->mut);
 
+dbgprintf("XXX: strmDestruct %s, bAsyncWrite %d, flush %d\n", pThis->pszFName, pThis->bAsyncWrite, pThis->iFlushInterval);
 	/* strmClose() will handle read-only files as well as need to open
 	 * files that have unwritten buffers. -- rgerhards, 2010-03-09
 	 */
@@ -731,7 +739,7 @@ static rsRetVal strmCheckNextOutputFile(strm_t *pThis)
 	strmWaitAsyncWriterDone(pThis);
 
 	if(pThis->iCurrOffs >= pThis->iMaxFileSize) {
-		dbgoprint((obj_t*) pThis, "max file size %ld reached for %d, now %ld - starting new file\n",
+		DBGOPRINT((obj_t*) pThis, "max file size %ld reached for %d, now %ld - starting new file\n",
 			  (long) pThis->iMaxFileSize, pThis->fd, (long) pThis->iCurrOffs);
 		CHKiRet(strmNextFile(pThis));
 	}
@@ -811,7 +819,7 @@ doWriteCall(strm_t *pThis, uchar *pBuf, size_t *pLenBuf)
 		pWriteBuf += iWritten;
 	} while(lenBuf > 0);	/* Warning: do..while()! */
 
-	dbgoprint((obj_t*) pThis, "file %d write wrote %d bytes\n", pThis->fd, (int) iWritten);
+	DBGOPRINT((obj_t*) pThis, "file %d write wrote %d bytes\n", pThis->fd, (int) iWritten);
 
 finalize_it:
 	*pLenBuf = iTotalWritten;
@@ -939,9 +947,11 @@ asyncWriterThread(void *pPtr)
 			bTimedOut = 0;
 			timeoutComp(&t, pThis->iFlushInterval * 2000); /* *1000 millisconds */
 			if(pThis->bDoTimedWait) {
-				if(pthread_cond_timedwait(&pThis->notEmpty, &pThis->mut, &t) != 0) {
+				DBGPRINTF("async writer going into timedwait\n");
+				if(d_pthread_cond_timedwait(&pThis->notEmpty, &pThis->mut, &t) != 0) {
 					int err = errno;
 					if(err == ETIMEDOUT) {
+						DBGPRINTF("stream async writer wait has timed out");
 						bTimedOut = 1;
 					} else {
 						bTimedOut = 1;
@@ -952,8 +962,10 @@ asyncWriterThread(void *pPtr)
 					}
 				}
 			} else {
+				DBGPRINTF("async writer going into eternal wait\n");
 				d_pthread_cond_wait(&pThis->notEmpty, &pThis->mut);
 			}
+DBGPRINTF("async writer after waits, bStop %d\n", pThis->bStopWriter);
 		}
 
 		bTimedOut = 0; /* we may have timed out, but there *is* work to do... */
@@ -969,6 +981,7 @@ asyncWriterThread(void *pPtr)
 				pthread_cond_broadcast(&pThis->isEmpty);
 		}
 		d_pthread_mutex_unlock(&pThis->mut);
+DBGPRINTF("async writer end of loop\n");
 	}
 
 finalize_it:
@@ -1130,7 +1143,9 @@ strmFlush(strm_t *pThis)
 	DEFiRet;
 
 	ASSERT(pThis != NULL);
-	dbgoprint((obj_t*) pThis, "file %d flush, buflen %ld\n", pThis->fd, (long) pThis->iBufPtr);
+//xxx	DBGOPRINT((obj_t*) pThis, "file %d(%s) flush, buflen %ld%s\n", pThis->fd,
+//xxx		  (pThis->pszFName == NULL) ? "N/A" : (char*)pThis->pszFName,
+//xxx		  (long) pThis->iBufPtr, (pThis->iBufPtr == 0) ? " (no need to flush)" : "");
 
 	if(pThis->tOperationsMode != STREAMMODE_READ && pThis->iBufPtr > 0) {
 		iRet = strmSchedWrite(pThis, pThis->pIOBuf, pThis->iBufPtr);
@@ -1155,7 +1170,7 @@ static rsRetVal strmSeek(strm_t *pThis, off_t offs)
 	else
 		strmFlush(pThis);
 	int i;
-	dbgoprint((obj_t*) pThis, "file %d seek, pos %ld\n", pThis->fd, (long) offs);
+	DBGOPRINT((obj_t*) pThis, "file %d seek, pos %ld\n", pThis->fd, (long) offs);
 	i = lseek(pThis->fd, offs, SEEK_SET); // TODO: check error!
 	pThis->iCurrOffs = offs; /* we are now at *this* offset */
 	pThis->iBufPtr = 0; /* buffer invalidated */

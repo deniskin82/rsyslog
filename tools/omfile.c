@@ -608,9 +608,12 @@ ENDcreateInstance
 
 BEGINfreeInstance
 CODESTARTfreeInstance
+dbgprintf("XXX: omfile freeInstance, %s\n", pData->f_fname);
 	if(pData->bDynamicName) {
+dbgprintf("XXX: omfile del dynacache freeInstance\n");
 		dynaFileFreeCache(pData);
 	} else if(pData->pStrm != NULL)
+dbgprintf("XXX: omfile del stream freeInstance\n");
 		strm.Destruct(&pData->pStrm);
 ENDfreeInstance
 
