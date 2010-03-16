@@ -6,7 +6,8 @@
 # begun 2009-05-27 by rgerhards
 # This file is part of the rsyslog project, released under GPLv3
 #valgrind="valgrind --log-fd=1"
-#valgrind="valgrind --tool=drd --log-fd=1"
+valgrind="valgrind --tool=exp-ptrcheck --log-fd=1 --num-callers=30"
+#valgrind="valgrind --tool=drd --log-fd=1 --num-callers=30 --read-var-info=yes"
 #valgrind="valgrind --tool=helgrind --log-fd=1"
 #set -o xtrace
 #export RSYSLOG_DEBUG="debug nostdout printmutexaction"

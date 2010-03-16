@@ -619,7 +619,9 @@ Load(uchar *pModName)
 		pModInfo = GetNxt(pModInfo);
 	}
 
-	pModDirCurr = (uchar *)((pModDir == NULL) ? _PATH_MODDIR : (char *)pModDir);
+dbgprintf("XXX: pModDir %p, _PATH_MODDIR %p (%s)\n", pModDir, _PATH_MODDIR, _PATH_MODDIR);
+	pModDirCurr = (pModDir == NULL) ? (uchar*) _PATH_MODDIR : pModDir;
+dbgprintf("XXX: pModDirCurr %p (%s)\n", pModDirCurr, pModDirCurr);
 	pModDirNext = NULL;
 	pModHdlr    = NULL;
 	iLoadCnt    = 0;
@@ -632,7 +634,16 @@ Load(uchar *pModName)
 			*szPath = '\0';
 
 			iPathLen = strlen((char *)pModDirCurr);
+dbgprintf("XXX: iPathLen %d, pModDirCurr %p\n", iPathLen, pModDirCurr);
+#if 0 /* this is code placed to use the new exp-ptrcheck valgrind tool -- rgerhards, 2010-03-16 */
 			pModDirNext = (uchar *)strchr((char *)pModDirCurr, ':');
+#else
+			for(pModDirNext = pModDirCurr
+			    ; *pModDirNext != '\0' && *pModDirNext != ':'
+			    ; pModDirNext++)
+				; /*DO NOTHING - all done in for() header*/
+#endif
+dbgprintf("XXX: pModDirNext %p (%s)\n", pModDirNext, pModDirNext);
 			if(pModDirNext)
 				iPathLen = (size_t)(pModDirNext - pModDirCurr);
 

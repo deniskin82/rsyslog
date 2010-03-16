@@ -680,10 +680,13 @@ stopWriter(strm_t *pThis)
 /* destructor for the strm object */
 BEGINobjDestruct(strm) /* be sure to specify the object type also in END and CODESTART macros! */
 	int i;
+	int iCancelStateSaveBuf;
 CODESTARTobjDestruct(strm)
-	if(pThis->bAsyncWrite)
+	if(pThis->bAsyncWrite) {
 		/* Note: mutex will be unlocked in stopWriter! */
+		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &iCancelStateSaveBuf);
 		d_pthread_mutex_lock(&pThis->mut);
+	}
 
 	/* strmClose() will handle read-only files as well as need to open
 	 * files that have unwritten buffers. -- rgerhards, 2010-03-09
@@ -699,6 +702,7 @@ CODESTARTobjDestruct(strm)
 		for(i = 0 ; i < STREAM_ASYNC_NUMBUFS ; ++i) {
 			free(pThis->asyncBuf[i].pBuf);
 		}
+		pthread_setcancelstate(iCancelStateSaveBuf, NULL);
 	} else {
 		free(pThis->pIOBuf);
 	}
