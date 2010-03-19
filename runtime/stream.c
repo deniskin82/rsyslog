@@ -67,7 +67,7 @@ DEFobjStaticHelpers
 DEFobjCurrIf(zlibw)
 
 /* forward definitions */
-static rsRetVal strmFlush(strm_t *pThis);
+static rsRetVal strmFlushInternal(strm_t *pThis);
 static rsRetVal strmWrite(strm_t *pThis, uchar *pBuf, size_t lenBuf);
 static rsRetVal strmCloseFile(strm_t *pThis);
 static void *asyncWriterThread(void *pPtr);
@@ -215,7 +215,10 @@ doPhysOpen(strm_t *pThis)
 	}
 
 	pThis->fd = open((char*)pThis->pszCurrFName, iFlags, pThis->tOpenMode);
-	DBGPRINTF("file '%s' opened as #%d with mode %d\n", pThis->pszCurrFName, pThis->fd, pThis->tOpenMode);
+	DBGPRINTF("file '%s' opened as #%d with mode 0x%x(read:%d, write:%d)\n",
+		  pThis->pszCurrFName, pThis->fd, pThis->tOpenMode,
+		  pThis->tOpenMode & O_WRONLY,
+		  pThis->tOpenMode & O_RDONLY);
 	if(pThis->fd == -1) {
 		char errStr[1024];
 		int err = errno;
@@ -286,6 +289,22 @@ finalize_it:
 }
 
 
+/* stop the writer thread (we MUST be runnnig asynchronously when this method
+ * is called!). -- rgerhards, 2009-07-06
+ */
+static inline void
+stopWriter(strm_t *pThis)
+{
+	BEGINfunc
+	d_pthread_mutex_lock(&pThis->mut);
+	pThis->bStopWriter = 1;
+	pthread_cond_signal(&pThis->notEmpty);
+	d_pthread_mutex_unlock(&pThis->mut);
+	pthread_join(pThis->writerThreadID, NULL);
+	ENDfunc
+}
+
+
 /* wait for the output writer thread to be done. This must be called before actions
  * that require data to be persisted. May be called in non-async mode and is a null
  * operation than. Must be called with the mutex locked.
@@ -297,7 +316,9 @@ strmWaitAsyncWriterDone(strm_t *pThis)
 	if(pThis->bAsyncWrite) {
 		/* awake writer thread and make it write out everything */
 		pthread_cond_signal(&pThis->notEmpty);
-		d_pthread_cond_wait(&pThis->isEmpty, &pThis->mut);
+		while(pThis->iCnt > 0) {
+			d_pthread_cond_wait(&pThis->isEmpty, &pThis->mut);
+		}
 	}
 	ENDfunc
 }
@@ -309,7 +330,7 @@ strmWaitAsyncWriterDone(strm_t *pThis)
  * Note: it is valid to call this function when the physical file is closed. If so,
  * strmCloseFile() will still check if there is any unwritten data inside buffers
  * (this may be the case) and, if so, will open the file, write the data, and then
- * close it again (this is done via strmFlush and friends).
+ * close it again (this is done via strmFlushInternal and friends).
  */
 static rsRetVal strmCloseFile(strm_t *pThis)
 {
@@ -320,9 +341,9 @@ static rsRetVal strmCloseFile(strm_t *pThis)
 		  (pThis->pszFName == NULL) ? "N/A" : (char*)pThis->pszFName);
 
 	if(pThis->tOperationsMode != STREAMMODE_READ) {
-		strmFlush(pThis);
+		strmFlushInternal(pThis);
 		if(pThis->bAsyncWrite) {
-			strmWaitAsyncWriterDone(pThis);
+			stopWriter(pThis);
 		}
 	}
 
@@ -668,36 +689,16 @@ finalize_it:
 }
 
 
-/* stop the writer thread (we MUST be runnnig asynchronously when this method
- * is called!). Note that the mutex must be locked! -- rgerhards, 2009-07-06
- */
-static inline void
-stopWriter(strm_t *pThis)
-{
-	BEGINfunc
-	pThis->bStopWriter = 1;
-	pthread_cond_signal(&pThis->notEmpty);
-	d_pthread_mutex_unlock(&pThis->mut);
-	pthread_join(pThis->writerThreadID, NULL);
-	ENDfunc
-}
-
-
 /* destructor for the strm object */
 BEGINobjDestruct(strm) /* be sure to specify the object type also in END and CODESTART macros! */
 	int i;
 CODESTARTobjDestruct(strm)
-	if(pThis->bAsyncWrite)
-		/* Note: mutex will be unlocked in stopWriter! */
-		d_pthread_mutex_lock(&pThis->mut);
-
 	/* strmClose() will handle read-only files as well as need to open
 	 * files that have unwritten buffers. -- rgerhards, 2010-03-09
 	 */
 	strmCloseFile(pThis);
 
 	if(pThis->bAsyncWrite) {
-		stopWriter(pThis);
 		pthread_mutex_destroy(&pThis->mut);
 		pthread_cond_destroy(&pThis->notFull);
 		pthread_cond_destroy(&pThis->notEmpty);
@@ -791,6 +792,7 @@ doWriteCall(strm_t *pThis, uchar *pBuf, size_t *pLenBuf)
 	pWriteBuf = (char*) pBuf;
 	iTotalWritten = 0;
 	do {
+dbgprintf("asyncWriter writes %d bytes: %s\n", lenBuf, pWriteBuf);
 		iWritten = write(pThis->fd, pWriteBuf, lenBuf);
 		if(iWritten < 0) {
 			char errStr[1024];
@@ -817,7 +819,7 @@ doWriteCall(strm_t *pThis, uchar *pBuf, size_t *pLenBuf)
 		pWriteBuf += iWritten;
 	} while(lenBuf > 0);	/* Warning: do..while()! */
 
-	DBGOPRINT((obj_t*) pThis, "file %d write wrote %d bytes\n", pThis->fd, (int) iWritten);
+	DBGOPRINT((obj_t*) pThis, "asycnWriter:file %d write wrote %d bytes\n", pThis->fd, (int) iWritten);
 
 finalize_it:
 	*pLenBuf = iTotalWritten;
@@ -861,11 +863,22 @@ doAsyncWriteInternal(strm_t *pThis, size_t lenBuf)
 	DEFiRet;
 	ISOBJ_TYPE_assert(pThis, strm);
 
-	while(pThis->iCnt >= STREAM_ASYNC_NUMBUFS)
+	while(pThis->iCnt >= STREAM_ASYNC_NUMBUFS - 1)
+{ dbgprintf("XXX: doAsyncWriteinternal waits on asyncWriter to finish, cnt=%d, iEnq %d, iDeq %d\n", pThis->iCnt, pThis->iEnq, pThis->iDeq);
 		d_pthread_cond_wait(&pThis->notFull, &pThis->mut);
+dbgprintf("XXX: doAsyncWriteinternal reactivated, cnt=%d\n", pThis->iCnt); }
 
-	pThis->asyncBuf[pThis->iEnq % STREAM_ASYNC_NUMBUFS].lenBuf = lenBuf;
-	pThis->pIOBuf = pThis->asyncBuf[++pThis->iEnq % STREAM_ASYNC_NUMBUFS].pBuf;
+dbgprintf("XXX: doAsyncWriteInteral iEnq %d/%d, iDeq %d\n", pThis->iEnq, pThis->iEnq % STREAM_ASYNC_NUMBUFS, pThis->iDeq);
+	pThis->asyncBuf[pThis->iEnq].lenBuf = lenBuf;
+	if(++pThis->iEnq == STREAM_ASYNC_NUMBUFS)
+		pThis->iEnq = 0;
+	/* NOTE: this is the *next* *free* buffer which will be filled by the producer!
+	 * The producer does NOT have its own buffer to save us the memory copy.
+	 */
+	pThis->pIOBuf = pThis->asyncBuf[pThis->iEnq].pBuf;
+
+dbgprintf("XXX: data at 0: %s\n", pThis->asyncBuf[0].pBuf);
+dbgprintf("XXX: data at 1: %s\n", pThis->asyncBuf[1].pBuf);
 
 	pThis->bDoTimedWait = 0; /* everything written, no need to timeout partial buffer writes */
 	if(++pThis->iCnt == 1)
@@ -928,25 +941,22 @@ asyncWriterThread(void *pPtr)
 	}
 #	endif
 
-	while(1) { /* loop broken inside */
-		d_pthread_mutex_lock(&pThis->mut);
-dbgprintf("XXX: asyncWriterThread iterating %s\n", pThis->pszFName);
-		while(pThis->iCnt == 0) {
-			if(pThis->bStopWriter) {
-				pthread_cond_broadcast(&pThis->isEmpty);
-				d_pthread_mutex_unlock(&pThis->mut);
-				goto finalize_it; /* break main loop */
-			}
+	d_pthread_mutex_lock(&pThis->mut);
+	do {
+		dbgprintf("XXX: asyncWriterThread iterating %s\n", pThis->pszFName);
+		while((pThis->iCnt == 0) && !pThis->bStopWriter) {
 			if(bTimedOut && pThis->iBufPtr > 0) {
 				/* if we timed out, we need to flush pending data */
-				strmFlush(pThis);
+				dbgprintf("XXX: asyncWriterThread calls strmFlushInternal %s\n", pThis->pszFName);
+				strmFlushInternal(pThis);
 				bTimedOut = 0;
 				continue; /* now we should have data */
 			}
 			bTimedOut = 0;
 			timeoutComp(&t, pThis->iFlushInterval * 2000); /* *1000 millisconds */
-			if(pThis->bDoTimedWait) {
-dbgprintf("asyncWriter thread going to timeout sleep\n");
+			//if(pThis->bDoTimedWait) {
+			if(0) {
+				dbgprintf("asyncWriter thread going to timeout sleep\n");
 				if(pthread_cond_timedwait(&pThis->notEmpty, &pThis->mut, &t) != 0) {
 					int err = errno;
 					if(err == ETIMEDOUT) {
@@ -960,29 +970,35 @@ dbgprintf("asyncWriter thread going to timeout sleep\n");
 					}
 				}
 			} else {
-dbgprintf("asyncWriter thread going to eternal sleep\n");
+				dbgprintf("asyncWriter thread going to eternal sleep\n");
 				d_pthread_cond_wait(&pThis->notEmpty, &pThis->mut);
 			}
-dbgprintf("asyncWriter woke up\n");
+			dbgprintf("asyncWriter woke up\n");
 		}
 
 		bTimedOut = 0; /* we may have timed out, but there *is* work to do... */
 
-		iDeq = pThis->iDeq++ % STREAM_ASYNC_NUMBUFS;
-dbgprintf("asyncWriter writes data\n");
-		doWriteInternal(pThis, pThis->asyncBuf[iDeq].pBuf, pThis->asyncBuf[iDeq].lenBuf);
-		// TODO: error check????? 2009-07-06
+		dbgprintf("asyncWriter exit wait loop, cnt %d buffers\n", pThis->iCnt);
 
-		--pThis->iCnt;
-		if(pThis->iCnt < STREAM_ASYNC_NUMBUFS) {
-			pthread_cond_signal(&pThis->notFull);
-			if(pThis->iCnt == 0)
-				pthread_cond_broadcast(&pThis->isEmpty);
+		if(pThis->iCnt > 0) {
+			while(pThis->iCnt > 0) {
+				dbgprintf("asyncWriter writes data, cnt %d, iEnq: %d, iDeq:%d, data %s\n", pThis->iCnt, pThis->iEnq, pThis->iDeq, pThis->asyncBuf[pThis->iDeq]);
+				// TODO: we can optimize here, release mutex during write!
+				doWriteInternal(pThis, pThis->asyncBuf[pThis->iDeq].pBuf, pThis->asyncBuf[pThis->iDeq].lenBuf);
+				if(++pThis->iDeq == STREAM_ASYNC_NUMBUFS)
+					pThis->iDeq = 0;
+				/* we do not check for errors, we can not handle them in any case... */
+				pthread_cond_signal(&pThis->notFull);
+				--pThis->iCnt;
+			}
+			pthread_cond_broadcast(&pThis->isEmpty);
 		}
-		d_pthread_mutex_unlock(&pThis->mut);
-	}
+	} while(!pThis->bStopWriter); /* warning: do..while() */
 
 finalize_it:
+	/* misuse "isEmpty" to flag we are done */
+	pthread_cond_broadcast(&pThis->isEmpty);
+	d_pthread_mutex_unlock(&pThis->mut);
 	ENDfunc
 	return NULL; /* to keep pthreads happy */
 }
@@ -1132,8 +1148,10 @@ finalize_it:
 
 
 /* flush stream output buffer to persistent storage. This can be called at any time
- * and is automatically called when the output buffer is full.
- * rgerhards, 2008-01-10
+ * and is automatically called when the output buffer is full. This function is for 
+ * use by external callers. Do NOT use it internally. It locks the async writer
+ * mutex if ther is need to do so.
+ * rgerhards, 2010-03-18
  */
 static rsRetVal
 strmFlush(strm_t *pThis)
@@ -1141,7 +1159,31 @@ strmFlush(strm_t *pThis)
 	DEFiRet;
 
 	ASSERT(pThis != NULL);
-	DBGOPRINT((obj_t*) pThis, "file %d(%s) flush, buflen %ld\n", pThis->fd, pThis->pszFName, (long) pThis->iBufPtr);
+
+dbgprintf("XXX: strmFlush (external version) called\n");
+	if(pThis->bAsyncWrite)
+		d_pthread_mutex_lock(&pThis->mut);
+	CHKiRet(strmFlushInternal(pThis));
+
+finalize_it:
+	if(pThis->bAsyncWrite)
+		d_pthread_mutex_unlock(&pThis->mut);
+
+	RETiRet;
+}
+
+
+/* flush stream output buffer to persistent storage. This can be called at any time
+ * and is automatically called when the output buffer is full. This is the internal version
+ * which requires that the mutex is locked if we have an asynchronous writer thread.
+ * rgerhards, 2008-01-10
+ */
+static rsRetVal
+strmFlushInternal(strm_t *pThis)
+{
+	DEFiRet;
+
+	ASSERT(pThis != NULL);
 	DBGOPRINT((obj_t*) pThis, "file %d(%s) flush, buflen %ld%s\n", pThis->fd,
 		  (pThis->pszFName == NULL) ? "N/A" : (char*)pThis->pszFName,
 		  (long) pThis->iBufPtr, (pThis->iBufPtr == 0) ? " (no need to flush)" : "");
@@ -1167,7 +1209,7 @@ static rsRetVal strmSeek(strm_t *pThis, off_t offs)
 	if(pThis->fd == -1)
 		strmOpenFile(pThis);
 	else
-		strmFlush(pThis);
+		strmFlushInternal(pThis);
 	int i;
 	DBGOPRINT((obj_t*) pThis, "file %d seek, pos %ld\n", pThis->fd, (long) offs);
 	i = lseek(pThis->fd, offs, SEEK_SET); // TODO: check error!
@@ -1208,7 +1250,7 @@ static rsRetVal strmWriteChar(strm_t *pThis, uchar c)
 
 	/* if the buffer is full, we need to flush before we can write */
 	if(pThis->iBufPtr == pThis->sIOBufSize) {
-		CHKiRet(strmFlush(pThis));
+		CHKiRet(strmFlushInternal(pThis));
 	}
 	/* we now always have space for one character, so we simply copy it */
 	*(pThis->pIOBuf + pThis->iBufPtr) = c;
@@ -1278,7 +1320,7 @@ strmWrite(strm_t *pThis, uchar *pBuf, size_t lenBuf)
 	iOffset = 0;
 	do {
 		if(pThis->iBufPtr == pThis->sIOBufSize) {
-			CHKiRet(strmFlush(pThis)); /* get a new buffer for rest of data */
+			CHKiRet(strmFlushInternal(pThis)); /* get a new buffer for rest of data */
 		}
 		iWrite = pThis->sIOBufSize - pThis->iBufPtr; /* this fits in current buf */
 		if(iWrite > lenBuf)
@@ -1293,7 +1335,7 @@ strmWrite(strm_t *pThis, uchar *pBuf, size_t lenBuf)
 	 * write it. This seems more natural than waiting (hours?) for the next message...
 	 */
 	if(pThis->iBufPtr == pThis->sIOBufSize) {
-		CHKiRet(strmFlush(pThis)); /* get a new buffer for rest of data */
+		CHKiRet(strmFlushInternal(pThis)); /* get a new buffer for rest of data */
 	}
 
 finalize_it:
@@ -1452,7 +1494,7 @@ static rsRetVal strmSerialize(strm_t *pThis, strm_t *pStrm)
 	ISOBJ_TYPE_assert(pThis, strm);
 	ISOBJ_TYPE_assert(pStrm, strm);
 
-	strmFlush(pThis);
+	strmFlushInternal(pThis);
 	CHKiRet(obj.BeginSerialize(pStrm, (obj_t*) pThis));
 
 	objSerializeSCALAR(pStrm, iCurrFNum, INT);

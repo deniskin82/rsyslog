@@ -54,7 +54,7 @@ echo ===========================================================================
 echo TEST: \[asynwr_deadlock2.sh\]: a case known to have caused a deadlock in the past
 source $srcdir/diag.sh init
 # uncomment for debugging support:
-#export RSYSLOG_DEBUG="debug nostdout noprintmutexaction"
+#export RSYSLOG_DEBUG="debug nostdout printmutexaction"
 #export RSYSLOG_DEBUGLOG="log"
 source $srcdir/diag.sh startup asynwr_deadlock2.conf
 # send 20000 messages, each close to 2K (non-randomized!), so that we can fill
