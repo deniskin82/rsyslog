@@ -1310,6 +1310,10 @@ strmWrite(strm_t *pThis, uchar *pBuf, size_t lenBuf)
 	if(pThis->bDisabled)
 		ABORT_FINALIZE(RS_RET_STREAM_DISABLED);
 
+	/* safety check not to write if the stream is already shut down */
+	if(pThis->bAsyncWrite && pThis->bStopWriter == 1)
+		FINALIZE;
+
 	iOffset = 0;
 	do {
 		if(pThis->iBufPtr == pThis->sIOBufSize) {
