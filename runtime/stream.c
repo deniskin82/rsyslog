@@ -649,6 +649,7 @@ static rsRetVal strmConstructFinalize(strm_t *pThis)
 		pThis->bAsyncWrite = 1;
 	}
 
+pThis->bAsyncWrite = 0; // disable async writer for testing
 	/* if we work asynchronously, we need a couple of synchronization objects */
 	if(pThis->bAsyncWrite) {
 		pthread_mutex_init(&pThis->mut, 0);
@@ -915,6 +916,7 @@ finalize_it:
 
 
 
+#if 0
 /* This is the writer thread for asynchronous mode.
  * -- rgerhards, 2009-07-06
  */
@@ -992,6 +994,7 @@ finalize_it:
 	ENDfunc
 	return NULL; /* to keep pthreads happy */
 }
+#endif
 
 
 /* sync the file to disk, so that any unwritten data is persisted. This
