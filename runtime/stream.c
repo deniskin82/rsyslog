@@ -1172,8 +1172,13 @@ strmFlush(strm_t *pThis)
 
 	ASSERT(pThis != NULL);
 
-	if(pThis->bAsyncWrite)
+	if(pThis->bAsyncWrite) {
 		d_pthread_mutex_lock(&pThis->mut);
+		/* check if the writer is already shut down, if so, simply terminate. */
+		if(pThis->bStopWriter == 1)
+			FINALIZE;
+	}
+
 	CHKiRet(strmFlushInternal(pThis));
 
 finalize_it:
