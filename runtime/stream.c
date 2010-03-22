@@ -723,7 +723,7 @@ CODESTARTobjDestruct(strm)
 	free(pThis->pZipBuf);
 	free(pThis->pszCurrFName);
 	free(pThis->pszFName);
-
+	pThis->bStopWriter = 2; /* RG: use as flag for destruction */
 ENDobjDestruct(strm)
 
 
