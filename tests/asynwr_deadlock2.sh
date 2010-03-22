@@ -61,6 +61,7 @@ source $srcdir/diag.sh startup asynwr_deadlock2.conf
 # the buffers and hopefully run into the "deadlock".
 source $srcdir/diag.sh tcpflood -m20000 -d1800 -P129 -i1 -f5
 # sleep is important! need to make sure the instance is inactive
+sleep 1
 source $srcdir/diag.sh shutdown-when-empty # shut down rsyslogd when done processing messages
 source $srcdir/diag.sh wait-shutdown       # and wait for it to terminate
 cat rsyslog.out.*.log > rsyslog.out.log
