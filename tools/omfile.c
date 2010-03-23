@@ -107,6 +107,8 @@ static int	iFlushInterval = FLUSH_INTRVL_DFLT; 	/* how often flush the output bu
 uchar	*pszFileDfltTplName = NULL; /* name of the default template to use */
 /* end globals for default values */
 
+static pthread_mutex_t mutDirCreat;	/* make sure dir's are created by only one thread at a time -- TODO: see if we can optimize this */
+
 
 typedef struct _instanceData {
 	uchar	f_fname[MAXFNAME];/* file or template name (display only) */
@@ -361,11 +363,14 @@ prepareFile(instanceData *pData, uchar *newFileName)
 			 * We do not report any errors here ourselfs but let the code
 			 * fall through to error handler below.
 			 */
+			d_pthread_mutex_lock(&mutDirCreat);
 			if(makeFileParentDirs(newFileName, ustrlen(newFileName),
 			     pData->fDirCreateMode, pData->dirUID,
 			     pData->dirGID, pData->bFailOnChown) != 0) {
+				d_pthread_mutex_unlock(&mutDirCreat);
 			     	ABORT_FINALIZE(RS_RET_ERR); /* we give up */
 			}
+			d_pthread_mutex_unlock(&mutDirCreat);
 		}
 		/* no matter if we needed to create directories or not, we now try to create
 		 * the file. -- rgerhards, 2008-12-18 (based on patch from William Tisater)
@@ -802,6 +807,7 @@ CODESTARTmodExit
 	objRelease(errmsg, CORE_COMPONENT);
 	objRelease(strm, CORE_COMPONENT);
 	free(pszFileDfltTplName);
+	pthread_mutex_destroy(&mutDirCreat);
 ENDmodExit
 
 
@@ -818,6 +824,8 @@ CODESTARTmodInit
 CODEmodInit_QueryRegCFSLineHdlr
 	CHKiRet(objUse(errmsg, CORE_COMPONENT));
 	CHKiRet(objUse(strm, CORE_COMPONENT));
+
+	pthread_mutex_init(&mutDirCreat, NULL);
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"dynafilecachesize", 0, eCmdHdlrInt, (void*) setDynaFileCacheSize, NULL, STD_LOADABLE_MODULE_ID));
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"omfileziplevel", 0, eCmdHdlrInt, NULL, &iZipLevel, STD_LOADABLE_MODULE_ID));
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"omfileflushinterval", 0, eCmdHdlrInt, NULL, &iFlushInterval, STD_LOADABLE_MODULE_ID));

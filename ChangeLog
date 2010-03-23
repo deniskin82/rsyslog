@@ -2,6 +2,12 @@
 Version 4.6.2  [v4-stable] (rgerhards), 2010-03-??
 - new feature: "." action type added to support writing files to relative
   pathes (this is primarily meant as a debug aid)
+- bugfix: race condition during directory creation
+  If multiple files try to create a directory at (almost) the same time,
+  some of them may fail. This is a data race. It likely can trigger another
+  error condition (yet unknown) that then causes a segfault.
+  The current fix (and probably the final one) is to make this operation 
+  per-process exclusive. That should reduce concurrency in an acceptable way.
 - bugfix: potential re-use of free()ed file stream object in omfile
   when dynaCache is enabled, the cache is full, a new entry needs to
   be allocated, thus the LRU discarded, then a new entry is opend and that
