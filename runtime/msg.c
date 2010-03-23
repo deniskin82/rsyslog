@@ -2320,6 +2320,12 @@ uchar *MsgGetProp(msg_t *pMsg, struct templateEntry *pTpe,
 			return UCHAR_CONSTANT("**INVALID PROPERTY NAME**");
 	}
 
+	/* the following line fixes the symptom, but not the root cause -- at least MSG sometimes
+	 * returns a size of one to less. To prevent all troubles, we recalculate the sizes based
+	 * on what we actually got. TODO: remove once root cause is found.
+	 * rgerhards, 2010-03-23
+	 */
+	bufLen = ustrlen(pRes);
 
 	/* If we did not receive a template pointer, we are already done... */
 	if(pTpe == NULL) {
