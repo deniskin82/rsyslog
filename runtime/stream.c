@@ -916,7 +916,7 @@ finalize_it:
 
 
 
-#if 0
+#if 1
 /* This is the writer thread for asynchronous mode.
  * -- rgerhards, 2009-07-06
  */
