@@ -177,6 +177,8 @@ int makeFileParentDirs(uchar *szFile, size_t lenFile, mode_t mode,
         uchar *p;
         uchar *pszWork;
         size_t len;
+	int err;
+	int iTry = 0;
 	int bErr = 0;
 
 	assert(szFile != NULL);
@@ -190,8 +192,9 @@ int makeFileParentDirs(uchar *szFile, size_t lenFile, mode_t mode,
                 if(*p == '/') {
 			/* temporarily terminate string, create dir and go on */
                         *p = '\0';
+again:
                         if(access((char*)pszWork, F_OK)) {
-                                if(mkdir((char*)pszWork, mode) == 0) {
+                                if((err = mkdir((char*)pszWork, mode)) == 0) {
 					if(uid != (uid_t) -1 || gid != (gid_t) -1) {
 						/* we need to set owner/group */
 						if(chown((char*)pszWork, uid, gid) != 0)
@@ -201,8 +204,13 @@ int makeFileParentDirs(uchar *szFile, size_t lenFile, mode_t mode,
 							 * to do so.
 							 */
 					}
-				} else
+				} else {
+					if(err == EEXIST && iTry == 0) {
+						iTry = 1;
+						goto again;
+						}
 					bErr = 1;
+				}
 				if(bErr) {
 					int eSave = errno;
 					free(pszWork);
