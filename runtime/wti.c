@@ -265,6 +265,7 @@ wtiWorker(wti_t *pThis)
 		if(pWtp->pfRateLimiter != NULL) { /* call rate-limiter, if defined */
 			pWtp->pfRateLimiter(pWtp->pUsr);
 		}
+wtpDispCurWrkr(pWtp, "wtiWorker back in loop, try lock mutex");
 		
 		d_pthread_mutex_lock(pWtp->pmutUsr);
 
@@ -278,6 +279,7 @@ wtiWorker(wti_t *pThis)
 			d_pthread_mutex_unlock(pWtp->pmutUsr);
 			break;
 		}
+wtpDispCurWrkr(pWtp, "wtiWorker 10");
 
 		/* try to execute and process whatever we have */
 		/* Note that this function releases and re-aquires the mutex. The returned
@@ -291,7 +293,9 @@ wtiWorker(wti_t *pThis)
 				break;	/* end of loop */
 			}
 			doIdleProcessing(pThis, pWtp, &bInactivityTOOccured);
+wtpDispCurWrkr(pWtp, "wtiWorker back from idle processing");
 			d_pthread_mutex_unlock(pWtp->pmutUsr);
+wtpDispCurWrkr(pWtp, " wtiWorker unlocked mutex");
 			continue; /* request next iteration */
 		}
 
@@ -299,6 +303,7 @@ wtiWorker(wti_t *pThis)
 
 		bInactivityTOOccured = 0; /* reset for next run */
 	}
+wtpDispCurWrkr(pWtp, "wtiWorker going to terminate");
 
 	/* indicate termination */
 	pthread_cleanup_pop(0); /* remove cleanup handler */

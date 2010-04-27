@@ -2009,10 +2009,16 @@ CODESTARTobjDestruct(qqueue)
 	if(pThis->qType != QUEUETYPE_DIRECT && !pThis->bEnqOnly && pThis->pqParent == NULL)
 		ShutdownWorkers(pThis);
 
+dbgprintf("YYY: workers shutdown\n");
 	if(pThis->bIsDA && getPhysicalQueueSize(pThis) > 0 && pThis->bSaveOnShutdown) {
 		CHKiRet(DoSaveOnShutdown(pThis));
 	}
 
+#if 0
+dbgprintf("YYY: pre sleep\n");
+srSleep(1, 10000);
+dbgprintf("YYY: post sleep\n");
+#endif
 	/* finally destruct our (regular) worker thread pool
 	 * Note: currently pWtpReg is never NULL, but if we optimize our logic, this may happen,
 	 * e.g. when they are not created in enqueue-only mode. We already check the condition

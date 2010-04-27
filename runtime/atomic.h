@@ -92,9 +92,11 @@ void atomicSemExit(void);
 ({ \
 	my_typeof(data) tmp; \
 	sem_wait(&atomicSem); \
+/*dbgprintf("ZZZ: atomic_add emul via sem, sem aquired, curr var=%p val=%d\n", &data, (int) data);*/\
 	tmp = data; \
 	data += 1; \
 	sem_post(&atomicSem); \
+/*dbgprintf("ZZZ: atomic_add emul via sem, after sem , curr var=%p val=%d\n", &data, (int) data);*/\
 	tmp; \
 })
 

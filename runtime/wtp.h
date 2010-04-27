@@ -65,6 +65,9 @@ struct wtp_s {
 	rsRetVal (*pfDoWork)(void *pUsr, void *pWti);
 	/* end user objects */
 	uchar *pszDbgHdr;	/* header string for debug messages */
+#	ifndef HAVE_ATOMICS
+	pthread_mutex_t mutWrkThrdCnt; /* mutex to keep track of the worker thread count */
+#	endif
 };
 
 /* some symbolic constants for easier reference */

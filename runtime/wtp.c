@@ -96,6 +96,10 @@ BEGINobjConstruct(wtp) /* be sure to specify the object type also in END macro! 
 	pThis->pfGetDeqBatchSize = NotImplementedDummy;
 	pThis->pfDoWork = NotImplementedDummy;
 	pThis->pfObjProcessed = NotImplementedDummy;
+#	ifndef HAVE_ATOMICS
+	pthread_mutex_init(&pThis->mutWrkThrdCnt, NULL);
+#	endif
+dbgprintf("YYY: init numworkers=%d\n",pThis->iCurNumWrkThrd);
 ENDobjConstruct(wtp)
 
 
@@ -149,6 +153,9 @@ CODESTARTobjDestruct(wtp)
 	pthread_cond_destroy(&pThis->condThrdTrm);
 	pthread_mutex_destroy(&pThis->mutWtp);
 	pthread_attr_destroy(&pThis->attrThrd);
+#	ifndef HAVE_ATOMICS
+	pthread_mutex_destroy(&pThis->mutWrkThrdCnt);
+#	endif
 
 	free(pThis->pszDbgHdr);
 ENDobjDestruct(wtp)
@@ -186,7 +193,14 @@ wtpChkStopWrkr(wtp_t *pThis, int bLockUsrMutex)
 	/* we need a consistent value, but it doesn't really matter if it is changed
 	 * right after the fetch - then we simply do one more iteration in the worker
 	 */
-	wtpState = ATOMIC_FETCH_32BIT(pThis->wtpState);
+#	ifdef HAVE_ATOMICS
+		wtpState = ATOMIC_FETCH_32BIT(pThis->wtpState);
+#	else
+		d_pthread_mutex_lock(&pThis->mutWrkThrdCnt);
+		wtpState = pThis->wtpState;
+		d_pthread_mutex_unlock(&pThis->mutWrkThrdCnt);
+#	endif
+
 
 	if(wtpState == wtpState_SHUTDOWN_IMMEDIATE) {
 		ABORT_FINALIZE(RS_RET_TERMINATE_NOW);
@@ -258,11 +272,14 @@ wtpCancelAll(wtp_t *pThis)
 	int i;
 
 	ISOBJ_TYPE_assert(pThis, wtp);
+dbgprintf("YYY: in wtpCancelAll(), numWrkThrd=%d addr=%p\n", pThis->iCurNumWrkThrd, &pThis->iCurNumWrkThrd);
 
 	/* go through all workers and cancel those that are active */
 	for(i = 0 ; i < pThis->iNumWorkerThreads ; ++i) {
 		wtiCancelThrd(pThis->pWrkr[i]);
 	}
+
+dbgprintf("YYY: waiting for all workers to terminte, num=%d, addr=%p\n", pThis->iCurNumWrkThrd, &pThis->iCurNumWrkThrd);
 
 	RETiRet;
 }
@@ -285,7 +302,14 @@ wtpWrkrExecCleanup(wti_t *pWti)
 
 	/* the order of the next two statements is important! */
 	wtiSetState(pWti, WRKTHRD_STOPPED);
-	ATOMIC_DEC(pThis->iCurNumWrkThrd);
+#	ifdef HAVE_ATOMICS
+		ATOMIC_DEC(pThis->iCurNumWrkThrd);
+#	else
+		d_pthread_mutex_lock(&pThis->mutWrkThrdCnt);
+		--pThis->iCurNumWrkThrd;
+		d_pthread_mutex_unlock(&pThis->mutWrkThrdCnt);
+#	endif
+dbgprintf("YYY: WrkExecCleanup numworkers=%d\n",pThis->iCurNumWrkThrd);
 
 	DBGPRINTF("%s: Worker thread %lx, terminated, num workers now %d\n",
 		  wtpGetDbgHdr(pThis), (unsigned long) pWti, ATOMIC_FETCH_32BIT(pThis->iCurNumWrkThrd));
@@ -356,6 +380,7 @@ wtpWorker(void *arg) /* the arg is actually a wti object, even though we are in 
 
 	pthread_cleanup_push(wtpWrkrExecCancelCleanup, pWti);
 	wtiWorker(pWti);
+dbgprintf("YYY: wtiWorkter terminated\n");
 	pthread_cleanup_pop(0);
 	wtpWrkrExecCleanup(pWti);
 
@@ -400,13 +425,30 @@ wtpStartWrkr(wtp_t *pThis)
 	pWti = pThis->pWrkr[i];
 	wtiSetState(pWti, WRKTHRD_RUNNING);
 	iState = pthread_create(&(pWti->thrdID), &pThis->attrThrd, wtpWorker, (void*) pWti);
-	ATOMIC_INC(pThis->iCurNumWrkThrd); /* we got one more! */
+dbgprintf("YYY: pre interesting atomic_inc, varaddr=%p, val=%d\n", &pThis->iCurNumWrkThrd, pThis->iCurNumWrkThrd);
+#	ifdef HAVE_ATOMICS
+		ATOMIC_INC(pThis->iCurNumWrkThrd); /* we got one more! */
+#	else
+		d_pthread_mutex_lock(&pThis->mutWrkThrdCnt);
+		++pThis->iCurNumWrkThrd;
+		d_pthread_mutex_unlock(&pThis->mutWrkThrdCnt);
+#	endif
+dbgprintf("YYY: start wrkr numworkers=%d addr=%p\n", pThis->iCurNumWrkThrd, &pThis->iCurNumWrkThrd);
 
 	DBGPRINTF("%s: started with state %d, num workers now %d\n",
 		  wtpGetDbgHdr(pThis), iState, ATOMIC_FETCH_32BIT(pThis->iCurNumWrkThrd));
 
 finalize_it:
 	d_pthread_mutex_unlock(&pThis->mutWtp);
+	RETiRet;
+}
+
+rsRetVal  wtpDispCurWrkr(wtp_t *pThis, uchar *msg)
+{
+	DEFiRet;
+		d_pthread_mutex_lock(&pThis->mutWrkThrdCnt);
+dbgprintf("YYY: %s numworkers=%d addr=%p\n", msg, pThis->iCurNumWrkThrd, &pThis->iCurNumWrkThrd);
+		d_pthread_mutex_unlock(&pThis->mutWrkThrdCnt);
 	RETiRet;
 }
 
@@ -434,7 +476,13 @@ wtpAdviseMaxWorkers(wtp_t *pThis, int nMaxWrkr)
 	if(nMaxWrkr > pThis->iNumWorkerThreads) /* limit to configured maximum */
 		nMaxWrkr = pThis->iNumWorkerThreads;
 
-	nMissing = nMaxWrkr - ATOMIC_FETCH_32BIT(pThis->iCurNumWrkThrd);
+#	ifdef HAVE_ATOMICS
+		nMissing = nMaxWrkr - ATOMIC_FETCH_32BIT(pThis->iCurNumWrkThrd);
+#	else
+		d_pthread_mutex_lock(&pThis->mutWrkThrdCnt);
+		nMissing = nMaxWrkr - pThis->iCurNumWrkThrd;
+		d_pthread_mutex_unlock(&pThis->mutWrkThrdCnt);
+#	endif
 
 	if(nMissing > 0) {
 		DBGPRINTF("%s: high activity - starting %d additional worker thread(s).\n",
