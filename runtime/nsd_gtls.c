@@ -503,9 +503,17 @@ gtlsRecordRecv(nsd_gtls_t *pThis)
 	if(lenRcvd >= 0) {
 		pThis->lenRcvBuf = lenRcvd;
 		pThis->ptrRcvBuf = 0;
+pThis->nbrRtry;
 	} else if(lenRcvd == GNUTLS_E_AGAIN || lenRcvd == GNUTLS_E_INTERRUPTED) {
 		pThis->rtryCall = gtlsRtry_recv;
-		dbgprintf("GnuTLS receive requires a retry (this most probably is OK and no error condition)\n");
+++pThis->nbrRtry;	
+		dbgprintf("GnuTLS receive requires a retry, number %d (this most probably "
+			  "is OK and no error condition)\n", pThis->nbrRtry);
+/* test code: hard abort if we have too many retries
+ * TODO: find roo cause!
+ */
+if(pThis->nbrRtry >= 100)
+	ABORT_FINALIZE(RS_RET_GNUTLS_ERR);
 		ABORT_FINALIZE(RS_RET_RETRY);
 	} else {
 		int gnuRet; /* TODO: build a specific function for GnuTLS error reporting */

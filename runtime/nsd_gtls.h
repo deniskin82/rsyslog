@@ -50,6 +50,7 @@ struct nsd_gtls_s {
 		GTLS_AUTH_CERTANON = 3
 	} authMode;
 	gtlsRtryCall_t rtryCall;/**< what must we retry? */
+int nbrRtry;		/**< how many retries do we have? */
 	int bIsInitiator;	/**< 0 if socket is the server end (listener), 1 if it is the initiator */
 	gnutls_session sess;
 	int bHaveSess;		/* as we don't know exactly which gnutls_session values are invalid, we use this one
