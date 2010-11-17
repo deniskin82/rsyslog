@@ -69,6 +69,7 @@ Add(nsdsel_t *pNsdsel, nsd_t *pNsd, nsdsel_waitOp_t waitOp)
 	ISOBJ_TYPE_assert(pSock, nsd_ptcp);
 	ISOBJ_TYPE_assert(pThis, nsdsel_ptcp);
 
+dbgprintf("XXX: add ptcp waitop=%d, fd=%d\n", waitOp, pSock->sock);
 	switch(waitOp) {
 		case NSDSEL_RD:
 			FD_SET(pSock->sock, &pThis->readfds);
@@ -113,6 +114,7 @@ Select(nsdsel_t *pNsdsel, int *piNumReady)
 
 	/* now do the select */
 	*piNumReady = select(pThis->maxfds+1, &pThis->readfds, &pThis->writefds, NULL, NULL);
+	dbgprintf("nsdsel_ptcp: select returns%d descriptors\n", *piNumReady);
 
 	RETiRet;
 }
@@ -142,6 +144,7 @@ IsReady(nsdsel_t *pNsdsel, nsd_t *pNsd, nsdsel_waitOp_t waitOp, int *pbIsReady)
 				     | FD_ISSET(pSock->sock, &pThis->writefds);
 			break;
 	}
+dbgprintf("XXX: ptcp says %d isReady: %d\n", pSock->sock, *pbIsReady);
 
 	RETiRet;
 }

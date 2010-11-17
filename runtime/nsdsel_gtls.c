@@ -74,20 +74,27 @@ Add(nsdsel_t *pNsdsel, nsd_t *pNsd, nsdsel_waitOp_t waitOp)
 	ISOBJ_TYPE_assert(pThis, nsdsel_gtls);
 	ISOBJ_TYPE_assert(pNsdGTLS, nsd_gtls);
 	if(pNsdGTLS->iMode == 1) {
+dbgprintf("nsdsel gtls add 10\n");
 		if(waitOp == NSDSEL_RD && gtlsHasRcvInBuffer(pNsdGTLS)) {
+dbgprintf("nsdsel gtls add 15\n");
 			++pThis->iBufferRcvReady;
 			FINALIZE;
 		}
+dbgprintf("nsdsel gtls add 20\n");
 		if(pNsdGTLS->rtryCall != gtlsRtry_None) {
+dbgprintf("nsdsel gtls add 30\n");
 			if(gnutls_record_get_direction(pNsdGTLS->sess) == 0) {
+dbgprintf("nsdsel gtls add 40\n");
 				CHKiRet(nsdsel_ptcp.Add(pThis->pTcp, pNsdGTLS->pTcp, NSDSEL_RD));
 			} else {
+dbgprintf("nsdsel gtls add 50\n");
 				CHKiRet(nsdsel_ptcp.Add(pThis->pTcp, pNsdGTLS->pTcp, NSDSEL_WR));
 			}
 			FINALIZE;
 		}
 	}
 
+dbgprintf("nsdsel gtls add 60\n");
 	/* if we reach this point, we need no special handling */
 	CHKiRet(nsdsel_ptcp.Add(pThis->pTcp, pNsdGTLS->pTcp, waitOp));
 
@@ -106,10 +113,14 @@ Select(nsdsel_t *pNsdsel, int *piNumReady)
 	nsdsel_gtls_t *pThis = (nsdsel_gtls_t*) pNsdsel;
 
 	ISOBJ_TYPE_assert(pThis, nsdsel_gtls);
+dbgprintf("XXX Select, bufferisready %d\n", pThis->iBufferRcvReady);
 	if(pThis->iBufferRcvReady > 0) {
 		/* we still have data ready! */
+dbgprintf("XXX Select, data is ready\n");
 		*piNumReady = pThis->iBufferRcvReady;
+		pThis->iBufferRcvReady = 0;
 	} else {
+dbgprintf("XXX Select, calling ptcp select\n");
 		iRet = nsdsel_ptcp.Select(pThis->pTcp, piNumReady);
 	}
 
@@ -189,15 +200,18 @@ IsReady(nsdsel_t *pNsdsel, nsd_t *pNsd, nsdsel_waitOp_t waitOp, int *pbIsReady)
 	ISOBJ_TYPE_assert(pNsdGTLS, nsd_gtls);
 	if(pNsdGTLS->iMode == 1) {
 		if(waitOp == NSDSEL_RD && gtlsHasRcvInBuffer(pNsdGTLS)) {
+dbgprintf("XXX: gtls says isReady 1\n");
 			*pbIsReady = 1;
 			FINALIZE;
 		}
 		if(pNsdGTLS->rtryCall != gtlsRtry_None) {
+dbgprintf("XXX: gtls does retry\n");
 			CHKiRet(doRetry(pNsdGTLS));
 			/* we used this up for our own internal processing, so the socket
 			 * is not ready from the upper layer point of view.
 			 */
 			*pbIsReady = 0;
+dbgprintf("XXX: gtls says isReady 0\n");
 			FINALIZE;
 		}
 	}

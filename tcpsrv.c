@@ -442,6 +442,7 @@ SessAccept(tcpsrv_t *pThis, tcpLstnPortList_t *pLstnInfo, tcps_sess_t **ppSess, 
 	pSess = NULL; /* this is now also handed over */
 
 finalize_it:
+	dbgprintf("XXX: sess_accept returns %d\n", iRet);
 	if(iRet != RS_RET_OK) {
 		if(pSess != NULL)
 			tcps_sess.Destruct(&pSess);
@@ -491,10 +492,12 @@ Run(tcpsrv_t *pThis)
 		// TODO: set driver
 		CHKiRet(nssel.ConstructFinalize(pSel));
 
+dbgprintf("XXX: adding tcp listen sockets\n");
 		/* Add the TCP listen sockets to the list of read descriptors. */
 		for(i = 0 ; i < pThis->iLstnCurr ; ++i) {
 			CHKiRet(nssel.Add(pSel, pThis->ppLstn[i], NSDSEL_RD));
 		}
+dbgprintf("XXX: done adding tcp listen sockets\n");
 
 		/* do the sessions */
 		iTCPSess = TCPSessGetNxtSess(pThis, -1);
@@ -509,9 +512,10 @@ Run(tcpsrv_t *pThis)
 		CHKiRet(nssel.Wait(pSel, &nfds));
 
 		for(i = 0 ; i < pThis->iLstnCurr ; ++i) {
+			dbgprintf("check for connect on NSD %p, index %d.\n", pThis->ppLstn[i], i);
 			CHKiRet(nssel.IsReady(pSel, pThis->ppLstn[i], NSDSEL_RD, &bIsReady, &nfds));
 			if(bIsReady) {
-				dbgprintf("New connect on NSD %p.\n", pThis->ppLstn[i]);
+				dbgprintf("New connect on NSD %p, index %d.\n", pThis->ppLstn[i], i);
 				SessAccept(pThis, pThis->ppLstnPort[i], &pNewSess, pThis->ppLstn[i]);
 				--nfds; /* indicate we have processed one */
 			}
@@ -520,6 +524,8 @@ Run(tcpsrv_t *pThis)
 		/* now check the sessions */
 		iTCPSess = TCPSessGetNxtSess(pThis, -1);
 		while(nfds && iTCPSess != -1) {
+			dbgprintf("check for traffic on NSD %p, index %d.\n", pThis->pSessions[iTCPSess], iTCPSess);
+			// TODO NSDSEL_RD for TLS OK?
 			CHKiRet(nssel.IsReady(pSel, pThis->pSessions[iTCPSess]->pStrm, NSDSEL_RD, &bIsReady, &nfds));
 			if(bIsReady) {
 				char buf[128*1024]; /* reception buffer - may hold a partial or multiple messages */

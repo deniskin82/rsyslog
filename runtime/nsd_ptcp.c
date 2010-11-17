@@ -332,6 +332,11 @@ AcceptConnReq(nsd_t *pNsd, nsd_t **ppNew)
 
 	iNewSock = accept(pThis->sock, (struct sockaddr*) &addr, &addrlen);
 	if(iNewSock < 0) {
+		char errStr[1024];
+		int e = errno;
+		rs_strerror_r(errno, errStr, sizeof(errStr));
+		dbgprintf("fd %d error %d during accept: %s.\n",
+		          pThis->sock, e, errStr);
 		ABORT_FINALIZE(RS_RET_ACCEPT_ERR);
 	}
 
