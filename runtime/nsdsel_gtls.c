@@ -76,8 +76,11 @@ Add(nsdsel_t *pNsdsel, nsd_t *pNsd, nsdsel_waitOp_t waitOp)
 	if(pNsdGTLS->iMode == 1) {
 dbgprintf("nsdsel gtls add 10\n");
 		if(waitOp == NSDSEL_RD && gtlsHasRcvInBuffer(pNsdGTLS)) {
-dbgprintf("nsdsel gtls add 15\n");
+dbgprintf("nsdsel gtls add 15 - increment iBufferRcvReady\n");
 			++pThis->iBufferRcvReady;
+			DBGPRINTF("Data already present in buffer, initiating "
+				  "dummy select %p->iBufferRcvReady=%d\n",
+				  pThis, pThis->iBufferRcvReady);
 			FINALIZE;
 		}
 dbgprintf("nsdsel gtls add 20\n");
@@ -118,7 +121,6 @@ dbgprintf("XXX Select, bufferisready %d\n", pThis->iBufferRcvReady);
 		/* we still have data ready! */
 dbgprintf("XXX Select, data is ready\n");
 		*piNumReady = pThis->iBufferRcvReady;
-		pThis->iBufferRcvReady = 0;
 	} else {
 dbgprintf("XXX Select, calling ptcp select\n");
 		iRet = nsdsel_ptcp.Select(pThis->pTcp, piNumReady);
@@ -202,6 +204,8 @@ IsReady(nsdsel_t *pNsdsel, nsd_t *pNsd, nsdsel_waitOp_t waitOp, int *pbIsReady)
 		if(waitOp == NSDSEL_RD && gtlsHasRcvInBuffer(pNsdGTLS)) {
 dbgprintf("XXX: gtls says isReady 1\n");
 			*pbIsReady = 1;
+			--pThis->iBufferRcvReady; /* one "pseudo-read" less */
+			DBGPRINTF("dummy read, decermenting %p->iBufRcvReady\n", pThis);
 			FINALIZE;
 		}
 		if(pNsdGTLS->rtryCall != gtlsRtry_None) {
@@ -212,6 +216,16 @@ dbgprintf("XXX: gtls does retry\n");
 			 */
 			*pbIsReady = 0;
 dbgprintf("XXX: gtls says isReady 0\n");
+			FINALIZE;
+		}
+		/* now we must ensure that we do not fall back to PTCP if we have
+		 * done a "dummy" select. In that case, we know when the predicate
+		 * is not matched here, we do not have data available for this
+		 * socket. -- rgerhards, 2010-11-20
+		 */
+		if(pThis->iBufferRcvReady) {
+			dbgprintf("dummy read, buffer not available for this FD\n");
+			*pbIsReady = 0;
 			FINALIZE;
 		}
 	}
