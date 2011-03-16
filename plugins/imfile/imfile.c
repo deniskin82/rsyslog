@@ -24,6 +24,7 @@
  *
  * A copy of the GPL can be found in the file "COPYING" in this distribution.
  */
+#include "config.h" /* this is for autotools and always must be the first include */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -33,7 +34,6 @@
 #include <sys/inotify.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "config.h" /* this is for autotools and always must be the first include */
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -706,7 +706,7 @@ ENDqueryEtryPt
 
 /* Maybe it's a good idea to use inotify tools */
 BEGINmodInit()
-  CODESTARTmodInit
+CODESTARTmodInit
   *ipIFVersProvided = CURR_MOD_IF_VERSION; /* we only support the current interface specification */
 CODEmodInit_QueryRegCFSLineHdlr
 CHKiRet(objUse(errmsg, CORE_COMPONENT));
