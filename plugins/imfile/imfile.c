@@ -63,6 +63,9 @@
  *  named as directory-file-state
  * */
 
+/* TO BE FIXED : 
+ * On Polling everything end to dumpDir */
+
 /***************************************************
  *                  GLOBAL DEFINITIONS             *
  **************************************************/
@@ -99,10 +102,11 @@ DEFobjCurrIf(errmsg)
 // This is used for naming the child based on parent's info
 #define inheritParent(CHILD,PARENT,NAME)  			\
 sprintf ( (char*) CHILD->fileName, "%s/%s", PARENT->fileName , NAME ) ; \
- sprintf ( (char*) CHILD->stateFile, "%s-%s", PARENT->stateFile, NAME  ) ; \
- strcpy( CHILD->fileTag , PARENT->fileTag );				\
+sprintf ( (char*) CHILD->stateFile, "%s-%s", PARENT->stateFile, NAME  ) ; \
+strcpy( (char *) CHILD->fileTag , (char *) PARENT->fileTag );				\
 CHILD->facility = PARENT->facility ;	     				\
 CHILD->severity = PARENT->severity ;  					\
+CHILD->pollInterval = PARENT->pollInterval ;  					\
 
 
  /****************
@@ -121,7 +125,7 @@ CHILD->severity = PARENT->severity ;  					\
        int facility;
        int severity;
        int isDir ;
-       //       int inotifyDesc;      // The file descriptor of the opened file
+	   int pollInterval;
        strm_t *pStrm;       // its stream (NULL if not assigned )
      } fileInfo;
 
@@ -130,7 +134,7 @@ static fileInfo * COMMITFILE;
 fileInfo **DESCRIPTORS; // Dynamic table for every file Descriptor
 int DESC_ELEMS;
 static linkedList_t FILE_LIST;
-
+int ACTIVE_INOTIFY;
 
 /***************************************************
  *                       UTILITIES                                               *
@@ -153,6 +157,7 @@ fileInfo* getNewFileStruct ( void  ) {
   newFile->isDir = 0;
   newFile->facility = 128; // local0
   newFile->severity = 5;   // notice, as of rfc 3164
+  newFile->pollInterval = 2;   // default polling time is 2s
   newFile->pStrm = NULL; 
   newFile->fileTag = (uchar*) malloc(1024);
   newFile->fileName = (uchar*) malloc(1024);
@@ -186,8 +191,8 @@ void printFileStruct ( fileInfo *file) {
 
   assert(file);
 
-  dbgprintf(  "FileName : %s , Tag : %s , Status : %s , Severity : %d, Facility :%d \n"  ,
-	  file->fileName , file->fileTag, file->stateFile, file->severity, file->facility );
+  dbgprintf(  "FileName : %s , Tag : %s , Status : %s , Severity : %d, Facility :%d , pollinterval : %d \n"  ,
+	  file->fileName , file->fileTag, file->stateFile, file->severity, file->facility , file->pollInterval);
 
 }
 
@@ -206,7 +211,6 @@ static rsRetVal openFile ( fileInfo *openThis )
 
 	sprintf( stateFile , "%s/%s", glbl.GetWorkDir() , openThis->stateFile );
       
-	fprintf(stderr, "lala :%s\n", stateFile );
    if (  stat(  (char *) stateFile  , &stat_buf) == -1  )
     {
 
@@ -223,10 +227,11 @@ static rsRetVal openFile ( fileInfo *openThis )
     {
       fprintf( stderr, "State file found for : %s . Loading settings\n", openThis->fileName);
 
+      fprintf( stderr, "edw ton pairneis ? : %s \n", stateFile);
       CHKiRet( strm.Construct( &psSF) );
       CHKiRet( strm.SettOperationsMode( psSF, STREAMMODE_READ) );
       CHKiRet( strm.SetsType( psSF, STREAMTYPE_FILE_SINGLE) );
-      CHKiRet( strm.SetFName( psSF, openThis->stateFile , strlen ( (char *)openThis->stateFile )) );
+      CHKiRet( strm.SetFName( psSF, stateFile , strlen ( (char *)stateFile )) );
       CHKiRet( strm.ConstructFinalize( psSF) );
 
       /* read back in the object */      
@@ -305,6 +310,44 @@ rsRetVal registerTarget ( char* target)
 }
 
 
+
+/* This function persists information for a specific file being monitored.
+ * To do so, it simply persists the stream object. We do NOT abort on error
+ * iRet as that makes matters worse (at least we can try persisting the others...).
+ * rgerhards, 2008-02-13
+ */
+rsRetVal persistStrmState( fileInfo *pInfo)
+{
+  DEFiRet;
+  strm_t *psSF = NULL; /* state file (stream) */
+  size_t lenDir;
+
+  ASSERT(pInfo != NULL);
+
+
+  /* TODO: create a function persistObj in obj.c? */
+  CHKiRet(strm.Construct(&psSF));
+  lenDir = strlen((char*)glbl.GetWorkDir());
+  if(lenDir > 0)
+    CHKiRet(strm.SetDir(psSF, glbl.GetWorkDir(), lenDir));
+  CHKiRet(strm.SettOperationsMode(psSF, STREAMMODE_WRITE_TRUNC));
+  CHKiRet(strm.SetsType(psSF, STREAMTYPE_FILE_SINGLE));
+  CHKiRet(strm.SetFName(psSF, pInfo->stateFile, strlen((char*) pInfo->stateFile)));
+  CHKiRet(strm.ConstructFinalize(psSF));
+
+  CHKiRet(strm.Serialize(pInfo->pStrm, psSF));
+
+  CHKiRet(strm.Destruct(&psSF));
+
+ finalize_it:
+  if(psSF != NULL)
+    strm.Destruct(&psSF);
+
+  RETiRet;
+}
+
+
+
 static void pollFileCancelCleanup(void *pArg)
  {
 	 BEGINfunc;
@@ -344,115 +387,76 @@ static rsRetVal inotifyTakesOver (  void ) {
   u_char eventList[ MAX_EVENTS ] = {0}; 
   struct inotify_event *pevent;
 
-  dbgprintf( "Inotify started\n");
-  /* Every entry in inotify watch has an ID. We use this ( ID - 1 ) for positioning
-     inside DESCRIPTORS.
-     TODO : add support for excluded files
-  */
+  //TODO : add support for excluded files
   while ( 1 )
     {
-      i = 0;
+      	i = 0;
+      	len = read (INOTIFY_DESC , eventList , MAX_EVENTS); // get events in eventlist
+      	if ( len < 0 )
+			handle_error ( "Problem in Reading inotify events\n");
        
-      len = read (INOTIFY_DESC , eventList , MAX_EVENTS); // get events in eventlist
-      if ( len < 0 )
-	handle_error ( "Problem in Reading inotify events\n");
+      	if ( len > MAX_EVENTS ) 
+			handle_error ( "Must be recompiled with higher MAX_EVENTS \n" );
        
-      if ( len > MAX_EVENTS ) 
-	handle_error ( "Must be recompiled with higher MAX_EVENTS \n" );
-       
-      /* Iterate events */
-      for ( i = 0; i < len ; i  += sizeof(struct inotify_event) + pevent->len ) 
-	{
-	  pthread_t curThread;
-	  
-	  pevent = (struct inotify_event *) & eventList[ i ];
+		/* Iterate events */
+		for ( i = 0; i < len ; i  += sizeof(struct inotify_event) + pevent->len ) 
+		{
+		  pthread_t curThread;
+		  pevent = (struct inotify_event *) & eventList[ i ];
     
-	  switch  ( pevent->mask )  {
+		  switch  ( pevent->mask )  {
 
-	  case IN_MODIFY : 
-         	    if ( DESCRIPTORS [pevent->wd - 1]  ->isDir  ) // If it's dir , just skip it
-		          break;
+		  case IN_MODIFY : 
+			if ( DESCRIPTORS [pevent->wd - 1]  ->isDir  ) // If it's dir , just skip it
+	  			break;
 		
 		    pthread_create( &curThread, NULL, (void *) readData ,  DESCRIPTORS[ pevent->wd -1 ]);	    
-		    break;
+			break;
 
-	  case IN_CREATE :
+		  case IN_CREATE :
 
-	    // FIXME : For The moment every time that a file is appended we have to reallocate the table.
-	    // Something better must be added here
-	    DESCRIPTORS = (fileInfo **) realloc ( DESCRIPTORS,   DESC_ELEMS * sizeof ( struct fileInfo_s ));
+			// FIXME : For The moment every time that a file is appended we have to reallocate the table.
+		    // Something better must be added here
+		    DESCRIPTORS = (fileInfo **) realloc ( DESCRIPTORS,   DESC_ELEMS * sizeof ( struct fileInfo_s ));
 
+	    	// Inheriting parent's facility, severity and generating unique fileName , statefile (Combination of file and path )
+		    fileInfo *newFile = getNewFileStruct ();
 
-	    // Inheriting parent's facility, severity and generating unique fileName , statefile (Combination of file and path )
-	    fileInfo *newFile = getNewFileStruct ();
+		    inheritParent ( newFile, DESCRIPTORS [ pevent->wd - 1] , pevent->name );
+	    	registerTarget ( (char *) newFile->fileName );  // Add file to inotify watch list
 
-	    inheritParent ( newFile, DESCRIPTORS [ pevent->wd - 1] , pevent->name );
-	    registerTarget ( (char *) newFile->fileName );  // Add file to inotify watch list
-
-
-	    DESCRIPTORS [ DESC_ELEMS ] = newFile;        // Add the new file to the list  
-	    CHKiRet ( openFile ( DESCRIPTORS [ DESC_ELEMS  ]  ) );
-	    DESC_ELEMS++;
-	    continue;
-	  } // Switch
-	}// For
+		    DESCRIPTORS [ DESC_ELEMS ] = newFile;        // Add the new file to the list  
+		    CHKiRet ( openFile ( DESCRIPTORS [ DESC_ELEMS  ]  ) );
+	    	DESC_ELEMS++;
+		    continue;
+		  } // Switch
+		}// For
     } // While
 
-  RETiRet;  
- finalize_it :
+RETiRet;  
+finalize_it :
   
   handle_error ( "Inotify stopped \n");
 
 }//  inotifyTakesOver 
 
 
-// TODO : This one ... (use poll )
-static rsRetVal pollingTakesOver (  void ) {
+static rsRetVal pollFile ( fileInfo *pThis ) {
 
   DEFiRet;
 
-  /************************
-   *  Case of Polling             *
-   ***********************/
-
-
-  int iPollInterval = 2;
-  int i = 0;
-  while ( 1 ) {
-    
-    for ( i = 0;  i < DESC_ELEMS  ; i ++ ) {
-      readData ( &DESCRIPTORS [ i ]  )  ;
-    }
-	srSleep(iPollInterval, 10);
-  }
-
-  /* while(1) { */
-
-  /*   dbgprintf( "lalala" ); */
-  /* 	do { */
-  /* 		bHadFileData = 0; */
-  /* 		for(i = 0 ; i < D_SIZE ; ++i) { */
-  /* 			/\* pollFile(&files[i], &bHadFileData); *\/ */
-  /* 		} */
-  /* 	} while( D_SIZE > 1 && bHadFileData == 1); /\* warning: do...while()! *\/ */
-
-  /* 	/\* Note: the additional 10ns wait is vitally important. It guards rsyslog against totally */
-  /* 	 * hogging the CPU if the users selects a polling interval of 0 seconds. It doesn't hurt any */
-  /* 	 * other valid scenario. So do not remove. -- rgerhards, 2008-02-14 */
-  /* 	 *\/ */
-  /* 	//		srSleep(iPollInterval, 10); */
-
-  /* } */
-  /*NOTREACHED*/
-
-
-  RETiRet;
+	while ( 1 ) {
+		readData ( pThis );
+		srSleep( pThis->pollInterval, 10);
+	}
+ 
+RETiRet;
   
 }
 
 
 /***************************************************
- *   Actual Runtime Functions                                        *
+ *    Actual Runtime Functions                     *
  **************************************************/
 
 
@@ -466,6 +470,7 @@ static rsRetVal pollingTakesOver (  void ) {
 BEGINwillRun
 CODESTARTwillRun
 
+dbgprintf("Falling back to Polling ( WillRun )\n");
 	/* we need to create the inputName property (only once during our lifetime) */
 	// I 'm not really sure why they are needed. They were here before me :>
 	CHKiRet(prop.Construct(&pInputName));
@@ -480,7 +485,6 @@ CODESTARTwillRun
 	llGetNumElts ( &FILE_LIST , &cnt_Elements) ; // Get number of elements
 
 	if( cnt_Elements == 0 ) {
-		dbgprintf( "DEBUG OUT : %s (%d)\n" , __func__, __LINE__ );
 		errmsg.LogError(0, RS_RET_NO_RUN, "No files configured to be monitored");
 		ABORT_FINALIZE(RS_RET_NO_RUN);
 	}
@@ -502,41 +506,32 @@ CODESTARTwillRun
 
 finalize_it:
 
-if ( iRet == RS_RET_OK ) 
-  {
-    dbgprintf( "calling RunInput ...\n");
-
-  }
- else 
-   {
-     perror("lalalala\n");
-     
-   }
-
-	
-dbgprintf(" EndWillRun just stopped  \n");
+/* TODO : At this point linked list can be released */
 
 ENDwillRun
 
 
-/*************************************
- * This is the eternal loop ....                  *
- *************************************/
-
-
 //#pragma GCC diagnostic ignored "-Wempty-body"
 BEGINrunInput
-int i;
 
 CODESTARTrunInput
 
 
-// if inotify exists ....
-while(1)
+if ( ACTIVE_INOTIFY )
   inotifyTakesOver (   );
-// else
-//    pollingTakesOver ( ) ;
-   
+else
+{
+
+	dbgprintf("Falling back to Polling\n");
+	int i = 0;
+
+    for ( i = 0;  i < DESC_ELEMS  ; i ++ ) {
+      
+		pthread_t curThread;
+	  	pthread_create( &curThread, NULL, (void *) pollFile , DESCRIPTORS [ i ]   );
+  
+  	}
+}
 
 RETiRet;
 
@@ -558,54 +553,17 @@ CODESTARTafterRun
 /* conditions, it may happen that we are terminated before we actuall could open all streams. So */
 /* before we change anything, we need to make sure the stream was open. */
 
-dbgprintf( " SAVING STATE , elems : %d \n", DESC_ELEMS);
 for(i = 0 ; i < DESC_ELEMS ; i++) {
-  //  if( DESCRIPTORS[i]->pStrm != NULL ) { /* stream open? */
-  dbgprintf("Saving : %s\n " , DESCRIPTORS[i] -> fileName );
-    persistStrmState ( DESCRIPTORS[i] );
-    strm.Destruct(  &DESCRIPTORS[i]->pStrm );
-    // }
+  	if( DESCRIPTORS[i]->pStrm != NULL ) { /* stream open? */
+  		dbgprintf("Saving : %s\n " , DESCRIPTORS[i] -> fileName );
+	    persistStrmState ( DESCRIPTORS[i] );
+    	strm.Destruct(  &DESCRIPTORS[i]->pStrm );
+	}
  }
 
 if(pInputName != NULL)
   prop.Destruct( &pInputName );
 ENDafterRun
-
-
-/* This function persists information for a specific file being monitored.
- * To do so, it simply persists the stream object. We do NOT abort on error
- * iRet as that makes matters worse (at least we can try persisting the others...).
- * rgerhards, 2008-02-13
- */
-rsRetVal persistStrmState( fileInfo *pInfo)
-{
-  DEFiRet;
-  strm_t *psSF = NULL; /* state file (stream) */
-  size_t lenDir;
-
-  ASSERT(pInfo != NULL);
-
-
-  /* TODO: create a function persistObj in obj.c? */
-  CHKiRet(strm.Construct(&psSF));
-  lenDir = strlen((char*)glbl.GetWorkDir());
-  if(lenDir > 0)
-    CHKiRet(strm.SetDir(psSF, glbl.GetWorkDir(), lenDir));
-  CHKiRet(strm.SettOperationsMode(psSF, STREAMMODE_WRITE_TRUNC));
-  CHKiRet(strm.SetsType(psSF, STREAMTYPE_FILE_SINGLE));
-  CHKiRet(strm.SetFName(psSF, pInfo->stateFile, strlen((char*) pInfo->stateFile)));
-  CHKiRet(strm.ConstructFinalize(psSF));
-
-  CHKiRet(strm.Serialize(pInfo->pStrm, psSF));
-
-  CHKiRet(strm.Destruct(&psSF));
-
- finalize_it:
-  if(psSF != NULL)
-    strm.Destruct(&psSF);
-
-  RETiRet;
-}
 
 
 /***************************************************
@@ -637,12 +595,13 @@ static rsRetVal addMonitor(void __attribute__((unused)) *pVal, uchar *possibleEn
 
 	toCommit = getNewFileStruct();
 
-	registerTarget ( (char* )COMMITFILE->fileName );
+	if ( ACTIVE_INOTIFY )
+		registerTarget ( (char* )COMMITFILE->fileName );
 
 	memcpy ( toCommit ,  COMMITFILE , sizeof(struct fileInfo_s )  );
-	toCommit->fileName = strdup ( (uchar*) COMMITFILE->fileName );
-	toCommit->fileTag = strdup ( (uchar*) COMMITFILE->fileTag );
-	toCommit->stateFile = strdup ( (uchar*) COMMITFILE->stateFile );
+	toCommit->fileName =  strdup ( (const char*) COMMITFILE->fileName );
+	toCommit->fileTag = strdup ( (const char*) COMMITFILE->fileTag );
+	toCommit->stateFile = strdup ( (const char*) COMMITFILE->stateFile );
  
 	// If it's a directory, recursively add all of its content
  	if ( S_ISDIR ( stat_buf.st_mode ) ) {
@@ -654,18 +613,20 @@ static rsRetVal addMonitor(void __attribute__((unused)) *pVal, uchar *possibleEn
 		dir = opendir ( (const char * )toCommit->fileName );
 		while ((ent = readdir (dir)) != NULL) {
 
-			// Ignoring . and .. which are parts of every directory
+			// Ignoring "." and ".." which are parts of every directory
 			if (  !strcmp( ent->d_name , "." ) || !strcmp( ent->d_name, ".." )  )
 				continue;
 
-		     subFile = getNewFileStruct ();
-		     inheritParent ( subFile, toCommit , ent->d_name );
-		    registerTarget ( (char *) subFile->fileName );  // Add file to inotify watch list
-
-    		    llAppend ( &FILE_LIST , 0 ,  subFile ); // Append CommitFile to FILE_LIST with entry number as key
-     		} 
-	  }
-    llAppend ( &FILE_LIST , 0 ,  toCommit ); // Append CommitFile to FILE_LIST with entry number as key
+	 		subFile = getNewFileStruct ();
+			inheritParent ( subFile, toCommit , ent->d_name );
+	
+			if ( ACTIVE_INOTIFY )
+				registerTarget ( (char *) subFile->fileName );  // Add file to inotify watch list
+			llAppend ( &FILE_LIST , 0 ,  subFile ); // Append CommitFile to FILE_LIST with entry number as key
+		}
+	RETiRet; 
+	}
+    llAppend ( &FILE_LIST , 0 ,  toCommit ); // Append object to the list only if it's a file
   }
 
  finalize_it:
@@ -704,7 +665,7 @@ ENDqueryEtryPt
 
 
 
-/* Maybe it's a good idea to use inotify tools */
+/*   Maybe it's a good idea to use inotify tools */
 BEGINmodInit()
 CODESTARTmodInit
   *ipIFVersProvided = CURR_MOD_IF_VERSION; /* we only support the current interface specification */
@@ -715,16 +676,18 @@ CHKiRet(objUse(datetime, CORE_COMPONENT));
 CHKiRet(objUse(strm, CORE_COMPONENT));
 CHKiRet(objUse(prop, CORE_COMPONENT));
 
-/* That's the best place to enable inotify */          
+/* Try to start inotify. If it fails, fallback to polling */
 INOTIFY_DESC = inotify_init();
 if ( INOTIFY_DESC < 0) {
-  handle_error ( "Problem in start inotify\n" );
-  return 1;
- }
+	handle_error ( "Problem occured in inotify initialisation\n" );
+	ACTIVE_INOTIFY = 0; 
+}
+ACTIVE_INOTIFY = 1;
 
 
 /* Various initializations */
 fileInfo* commitFile = getNewFileStruct(  );
+assert ( destroyFile != NULL );
 CHKiRet( llInit ( &FILE_LIST , destroyFile , NULL , NULL ) ) ;
 
 
@@ -744,17 +707,14 @@ CHKiRet( omsdRegCFSLineHdlr((int *)"inputfileseverity", 0, eCmdHdlrSeverity,
 CHKiRet( omsdRegCFSLineHdlr((uchar *)"inputfilefacility", 0, eCmdHdlrFacility,
 			    NULL,   &commitFile->facility , STD_LOADABLE_MODULE_ID));
 
-/* CHKiRet( omsdRegCFSLineHdlr((uchar *)"inputfilepollinterval", 0, eCmdHdlrInt, */
-/*   	NULL, &iPollInterval, STD_LOADABLE_MODULE_ID)); */
+CHKiRet( omsdRegCFSLineHdlr((uchar *)"inputfilepollinterval", 0, eCmdHdlrInt, 
+			   	NULL, &commitFile->pollInterval, STD_LOADABLE_MODULE_ID));
 
 /* submit info to register the file */
 COMMITFILE = commitFile;
 CHKiRet(omsdRegCFSLineHdlr((uchar *)"inputrunfilemonitor", 0, eCmdHdlrGetWord,
 			   addMonitor, NULL,  STD_LOADABLE_MODULE_ID));
 
-
-
-dbgprintf(  "%s (%d)  (STOP) \n" , __func__ , __LINE__);
 
 
 ENDmodInit
