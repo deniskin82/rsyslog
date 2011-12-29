@@ -215,6 +215,22 @@ if test "$enable_zlib" = "yes"; then
 fi
 
 
+# inotify
+AC_ARG_ENABLE(inotify,
+        [AS_HELP_STRING([--enable-inotify],[Enable inotify for modules such as imfile @<:@default=yes@:>@])],
+        [case "${enableval}" in
+         yes) enable_inotify="yes" ;;
+          no) enable_inotify="no" ;;
+           *) AC_MSG_ERROR(bad value ${enableval} for --enable-regexp) ;;
+         esac],
+        [enable_inotify=yes]
+)
+AM_CONDITIONAL(ENABLE_INOTIFY, test x$enable_inotify = xyes)
+if test "$enable_inotify" = "yes"; then
+        AC_CHECK_HEADERS([sys/inotify.h])
+fi
+
+
 #gssapi
 AC_ARG_ENABLE(gssapi_krb5,
 	[AS_HELP_STRING([--enable-gssapi-krb5],[Enable GSSAPI Kerberos 5 support @<:@default=no@:>@])],
@@ -1229,7 +1245,7 @@ echo "---{ input plugins }---"
 echo "    Klog functionality enabled:               $enable_klog ($os_type)"
 echo "    plain tcp input module enabled:           $enable_imptcp"
 echo "    imdiag enabled:                           $enable_imdiag"
-echo "    file input module enabled:                $enable_imfile"
+echo "    file input module enabled:                $enable_imfile (inotify=$enable_inotify)"
 echo "    Solaris input module enabled:             $enable_imsolaris"
 echo "    periodic statistics module enabled:       $enable_impstats"
 echo "    input template module will be compiled:   $enable_imtemplate"

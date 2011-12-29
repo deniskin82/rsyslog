@@ -221,7 +221,10 @@ doPhysOpen(strm_t *pThis)
 		iFlags |= O_NONBLOCK;
 	}
 
-	pThis->fd = open((char*)pThis->pszCurrFName, iFlags | O_LARGEFILE, pThis->tOpenMode);
+	/* always use O_LARGEFILE */
+	iFlags |= O_LARGEFILE;
+
+	pThis->fd = open((char*)pThis->pszCurrFName, iFlags, pThis->tOpenMode);
 	DBGPRINTF("file '%s' opened as #%d with mode %d\n", pThis->pszCurrFName,
 		  pThis->fd, (int) pThis->tOpenMode);
 	if(pThis->fd == -1) {
@@ -240,9 +243,46 @@ doPhysOpen(strm_t *pThis)
 		} else {
 			pThis->bIsTTY = 0;
 		}
+
+		/* we successfully opened the file, do the callback */
+		if (pThis->pOnFileOpened) {
+			pThis->pOnFileOpened(pThis, pThis->pszCurrFName, iFlags, pThis->tOpenMode, pThis->pOnFileOpenedData);
+
+			/* remember name of open file for pOnFileClosed */
+			free(pThis->pszOpenFName);
+			pThis->pszOpenFName = ustrdup(pThis->pszCurrFName);
+			if (pThis->pszOpenFName == NULL) {
+				close(pThis->fd);
+				pThis->fd = -1;
+				ABORT_FINALIZE(RS_RET_OUT_OF_MEMORY);
+			}
+		}
 	}
 
 finalize_it:
+	RETiRet;
+}
+
+
+/* do the physical close() call on a file.
+ */
+static rsRetVal
+doPhysClose(strm_t *pThis)
+{
+	DEFiRet;
+
+	if(pThis->fd != -1) {
+		close(pThis->fd);
+		pThis->fd = -1;
+
+		/* the file is now closed, do the callback */
+		if (pThis->pOnFileClosed) {
+			pThis->pOnFileClosed(pThis, pThis->pszOpenFName, pThis->pOnFileClosedData);
+			free(pThis->pszOpenFName);
+			pThis->pszOpenFName = NULL;
+		}
+	}
+
 	RETiRet;
 }
 
@@ -296,10 +336,7 @@ finalize_it:
 			free(pThis->pszCurrFName);
 			pThis->pszCurrFName = NULL; /* just to prevent mis-adressing down the road... */
 		}
-		if(pThis->fd != -1) {
-			close(pThis->fd);
-			pThis->fd = -1;
-		}
+		doPhysClose(pThis);
 	}
 	RETiRet;
 }
@@ -350,10 +387,7 @@ static rsRetVal strmCloseFile(strm_t *pThis)
 	/* the file may already be closed (or never have opened), so guard
 	 * against this. -- rgerhards, 2010-03-19
 	 */
-	if(pThis->fd != -1) {
-		close(pThis->fd);
-		pThis->fd = -1;
-	}
+	doPhysClose(pThis);
 
 	if(pThis->fdDir != -1) {
 		/* close associated directory handle, if it is open */
@@ -853,7 +887,7 @@ tryTTYRecover(strm_t *pThis, int err)
 	DEFiRet;
 	ISOBJ_TYPE_assert(pThis, strm);
 	if(err == ERR_TTYHUP) {
-		close(pThis->fd);
+		doPhysClose(pThis);
 		CHKiRet(doPhysOpen(pThis));
 	}
 
@@ -1657,6 +1691,32 @@ strmSetWCntr(strm_t *pThis, number_t *pWCnt)
 	RETiRet;
 }
 
+static rsRetVal
+strmSetOnFileOpened(strm_t *pThis, strmOnFileOpened_t pCallback, void *pData)
+{
+	DEFiRet;
+
+	ISOBJ_TYPE_assert(pThis, strm);
+
+	pThis->pOnFileOpened = pCallback;
+	pThis->pOnFileOpenedData = pData;
+
+	RETiRet;
+}
+
+static rsRetVal
+strmSetOnFileClosed(strm_t *pThis, strmOnFileClosed_t pCallback, void *pData)
+{
+	DEFiRet;
+
+	ISOBJ_TYPE_assert(pThis, strm);
+
+	pThis->pOnFileClosed = pCallback;
+	pThis->pOnFileClosedData = pData;
+
+	RETiRet;
+}
+
 
 #include "stringbuf.h"
 
@@ -1750,6 +1810,8 @@ CODESTARTobjQueryInterface(strm)
 	pIf->GetCurrOffset = strmGetCurrOffset;
 	pIf->Dup = strmDup;
 	pIf->SetWCntr = strmSetWCntr;
+	pIf->SetOnFileOpened = strmSetOnFileOpened;
+	pIf->SetOnFileClosed = strmSetOnFileClosed;
 	/* set methods */
 	pIf->SetbDeleteOnClose = strmSetbDeleteOnClose;
 	pIf->SetiMaxFileSize = strmSetiMaxFileSize;
