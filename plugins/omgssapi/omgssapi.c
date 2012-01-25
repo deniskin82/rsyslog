@@ -77,17 +77,12 @@ typedef struct _instanceData {
 	permittedPeers_t *pGssPermPeers;
 	int iGssStrmDrvrMode;
 	char	*f_hname;
-	int *pSockArray;	/* sockets to use for UDP */
 	int bIsConnected;  /* are we connected to remote host? 0 - no, 1 - yes, UDP means addr resolved */
 	struct addrinfo *f_addr;
 	int compressionLevel;	/* 0 - no compression, else level for zlib */
 	char *port;
-	int protocol;
-//	int iUDPRebindInterval;	/* rebind interval */
 	int iGSSRebindInterval;	/* rebind interval */
 	int nXmit;		/* number of transmissions since last (re-)bind */
-#	define	FORW_UDP 0
-#	define	FORW_TCP 1
 	/* following fields for TCP-based delivery */
 	tcpclt_t *pTCPClt;	/* our tcpclt object */
 
@@ -101,7 +96,6 @@ static uchar *pszGssStrmDrvr = NULL; /* name of the stream driver to use */
 static int iGssStrmDrvrMode = 0; /* mode for stream driver, driver-dependent (0 mostly means plain tcp) */
 static int bGssResendLastOnRecon = 0; /* should the last message be re-sent on a successful reconnect? */
 static uchar *pszGssStrmDrvrAuthMode = NULL; /* authentication mode to use */
-//static int iUDPRebindInterval = 0;	/* support for automatic re-binding (load balancers!). 0 - no rebind */
 static int iGSSRebindInterval = 0;	/* support for automatic re-binding (load balancers!). 0 - no rebind */
 
 static permittedPeers_t *pGssPermPeers = NULL;
@@ -178,11 +172,7 @@ CODESTARTfreeInstance
 	/* final cleanup */
 
 	DestructTCPInstanceData(pData);
-
-	if(pData->protocol == FORW_TCP) {
-		tcpclt.Destruct(&pData->pTCPClt);
-	}
-
+	tcpclt.Destruct(&pData->pTCPClt);
 	free(pData->port);
 	free(pData->f_hname);
 	free(pData->pszGssStrmDrvr);
@@ -240,18 +230,13 @@ static rsRetVal TCPSendGSSFrame(void *pvData, char *msg, size_t len)
 			    &in_buf, NULL, &out_buf);
 	if (maj_stat != GSS_S_COMPLETE) {
 		gssutil.display_status("wrapping message", maj_stat, min_stat);
-		iRet = RS_RET_ERR;
-		goto finalize_it;
+		ABORT_FINALIZE(RS_RET_ERR);
 	}
 	
 	if (gssutil.send_token(s, &out_buf) < 0) {
-		iRet = RS_RET_ERR;
-		goto finalize_it;
+		ABORT_FINALIZE(RS_RET_ERR);
 	}
 	gss_release_buffer(&min_stat, &out_buf);
-
-//	netstrm.CheckConnection(pData->pNetstrm); /* hack for plain tcp syslog - see ptcp driver for details */
-//	CHKiRet(netstrm.Send(pData->pNetstrm, (uchar*)msg, &lenSend));
 
 	dbgprintf("GSS sent %ld bytes, requested %ld\n", (long) lenSend, (long) len);
 
@@ -304,8 +289,6 @@ static rsRetVal TCPSendGSSInit(void *pvData)
 
 	assert(pData != NULL);
 	if(pData->pNetstrm == NULL) {
-
-
 		base = (gss_base_service_name == NULL) ? "host" : gss_base_service_name;
 		out_tok.length = strlen(pData->f_hname) + strlen(base) + 2;
 		CHKmalloc(out_tok.value = MALLOC(out_tok.length));
@@ -347,14 +330,10 @@ static rsRetVal TCPSendGSSInit(void *pvData)
 			if (maj_stat != GSS_S_COMPLETE
 			    && maj_stat != GSS_S_CONTINUE_NEEDED) {
 				gssutil.display_status("initializing context", maj_stat, init_sec_min_stat);
-				iRet = RS_RET_ERR;
-				goto finalize_it;
+				ABORT_FINALIZE(RS_RET_ERR);
 			}
 
 			if (pData->pNetstrm == NULL) {
-				//if ((s = pData->sock = tcpclt.CreateSocket(pData->f_addr)) == -1)
-				//	goto fail;
-	
 				CHKiRet(netstrms.Construct(&pData->pNS));
 				/* the stream driver must be set before the object is finalized! */
 				CHKiRet(netstrms.SetDrvrName(pData->pNS, pszGssStrmDrvr));
@@ -378,22 +357,17 @@ static rsRetVal TCPSendGSSInit(void *pvData)
 
 			if (out_tok.length != 0) {
 				dbgprintf("GSS-API Sending init_sec_context token (length: %ld)\n", (long) out_tok.length);
-	
 				netstrm.GetSock(pData->pNetstrm, &s);
-				//CHKiRet(netstrm.Send(pData->pNetstrm, (uchar*)&out_tok->value, &out_tok->length));
 				if (gssutil.send_token(s, &out_tok) < 0) {
-					iRet = RS_RET_ERR;
-					goto finalize_it;
+					ABORT_FINALIZE(RS_RET_ERR);
 				}
 			}
 			gss_release_buffer(&min_stat, &out_tok);
 
 			if (maj_stat == GSS_S_CONTINUE_NEEDED) {
 				dbgprintf("GSS-API Continue needed...\n");
-				//CHKiRet(netstrm.Rcv(pSess->pNetstrm, (uchar *)&in_tok->value, piLenRcvd));
 				if (gssutil.recv_token(s, &in_tok) <= 0) {
-					iRet = RS_RET_ERR;
-					goto finalize_it;
+					ABORT_FINALIZE(RS_RET_ERR);
 				}
 
 				tok_ptr = &in_tok;
@@ -411,7 +385,6 @@ static rsRetVal TCPSendGSSInit(void *pvData)
 
 finalize_it:
 	if(iRet != RS_RET_OK) {
-
 		errmsg.LogError(0, RS_RET_GSS_SENDINIT_ERROR, "GSS-API Context initialization failed\n");
 		gss_release_name(&min_stat, &target_name);
 		gss_release_buffer(&min_stat, &out_tok);
@@ -420,7 +393,6 @@ finalize_it:
 			*context = GSS_C_NO_CONTEXT;
 		}
 		DestructTCPInstanceData(pData);
-	
 	}
 	RETiRet;
 }
@@ -431,9 +403,6 @@ finalize_it:
  */
 static rsRetVal doTryResume(instanceData *pData)
 {
-//	int iErr;
-//	struct addrinfo *res;
-//	struct addrinfo hints;
 	DEFiRet;
 
 	if(pData->bIsConnected)
@@ -469,9 +438,7 @@ CODESTARTdoAction
 	CHKiRet(doTryResume(pData));
 
 	iMaxLine = glbl.GetMaxLine();
-
-	dbgprintf(" %s:%s/%s\n", pData->f_hname, getFwdPt(pData),
-		 pData->protocol == FORW_UDP ? "udp" : "tcp");
+	dbgprintf(" gssapi %s:%s\n", pData->f_hname, getFwdPt(pData));
 
 	psz = (char*) ppString[0];
 	l = strlen((char*) psz);
@@ -567,25 +534,6 @@ BEGINparseSelectorAct
 	TCPFRAMINGMODE tcp_framing = TCP_FRAMING_OCTET_STUFFING;
 CODESTARTparseSelectorAct
 CODE_STD_STRING_REQUESTparseSelectorAct(1)
-//	if(*p != '@')
-//		ABORT_FINALIZE(RS_RET_CONFLINE_UNPROCESSED);
-
-
-
-//	++p; /* eat '@' */
-//	if(*p == '@') { /* indicator for TCP! */
-//		localRet = loadTCPSupport();
-//		if(localRet != RS_RET_OK) {
-//			errmsg.LogError(0, localRet, "could not activate network stream modules for GSS "
-//					"(internal error %d) - are modules missing?", localRet);
-//			ABORT_FINALIZE(localRet);
-//		}
-//		pData->protocol = FORW_TCP;
-//		++p; /* eat this '@', too */
-//	} else {
-//		pData->protocol = FORW_UDP;
-//	}
-
 	if(!strncmp((char*) p, ":omgssapi:", sizeof(":omgssapi:") - 1)) {
 		p += sizeof(":omgssapi:") - 1; /* eat indicator sequence (-1 because of '\0'!) */
 
@@ -597,13 +545,9 @@ CODE_STD_STRING_REQUESTparseSelectorAct(1)
 					"(internal error %d) - are modules missing?", localRet);
 			ABORT_FINALIZE(localRet);
 		}
-		pData->protocol = FORW_TCP;
 	} else {
 		ABORT_FINALIZE(RS_RET_CONFLINE_UNPROCESSED);
 	}
-
-
-
 
 	/* we are now after the protocol indicator. Now check if we should
 	 * use compression. We begin to use a new option format for this:
@@ -718,33 +662,30 @@ CODE_STD_STRING_REQUESTparseSelectorAct(1)
 	}
 
 	/* copy over config data as needed */
-//	pData->iUDPRebindInterval = iUDPRebindInterval;
 	pData->iGSSRebindInterval = iGSSRebindInterval;
 
 	/* process template */
 	CHKiRet(cflineParseTemplateName(&p, *ppOMSR, 0, OMSR_NO_RQD_TPL_OPTS,
 		(pszTplName == NULL) ? (uchar*)"RSYSLOG_TraditionalForwardFormat" : pszTplName));
 
-	if(pData->protocol == FORW_TCP) {
-		/* create our tcpclt */
-		CHKiRet(tcpclt.Construct(&pData->pTCPClt));
-		CHKiRet(tcpclt.SetResendLastOnRecon(pData->pTCPClt, bGssResendLastOnRecon));
-		/* and set callbacks */
-		CHKiRet(tcpclt.SetSendInit(pData->pTCPClt, TCPSendGSSInit));
-		CHKiRet(tcpclt.SetSendFrame(pData->pTCPClt, TCPSendGSSFrame));
-		CHKiRet(tcpclt.SetSendPrepRetry(pData->pTCPClt, TCPSendGSSPrepRetry));
-		CHKiRet(tcpclt.SetFraming(pData->pTCPClt, tcp_framing));
-		CHKiRet(tcpclt.SetRebindInterval(pData->pTCPClt, pData->iGSSRebindInterval));
-		pData->iGssStrmDrvrMode = iGssStrmDrvrMode;
-		if(pszGssStrmDrvr != NULL)
-			CHKmalloc(pData->pszGssStrmDrvr = (uchar*)strdup((char*)pszGssStrmDrvr));
-		if(pszGssStrmDrvrAuthMode != NULL)
-			CHKmalloc(pData->pszGssStrmDrvrAuthMode =
-				     (uchar*)strdup((char*)pszGssStrmDrvrAuthMode));
-		if(pGssPermPeers != NULL) {
-			pData->pGssPermPeers = pGssPermPeers;
-			pGssPermPeers = NULL;
-		}
+	/* create our tcpclt */
+	CHKiRet(tcpclt.Construct(&pData->pTCPClt));
+	CHKiRet(tcpclt.SetResendLastOnRecon(pData->pTCPClt, bGssResendLastOnRecon));
+	/* and set callbacks */
+	CHKiRet(tcpclt.SetSendInit(pData->pTCPClt, TCPSendGSSInit));
+	CHKiRet(tcpclt.SetSendFrame(pData->pTCPClt, TCPSendGSSFrame));
+	CHKiRet(tcpclt.SetSendPrepRetry(pData->pTCPClt, TCPSendGSSPrepRetry));
+	CHKiRet(tcpclt.SetFraming(pData->pTCPClt, tcp_framing));
+	CHKiRet(tcpclt.SetRebindInterval(pData->pTCPClt, pData->iGSSRebindInterval));
+	pData->iGssStrmDrvrMode = iGssStrmDrvrMode;
+	if(pszGssStrmDrvr != NULL)
+		CHKmalloc(pData->pszGssStrmDrvr = (uchar*)strdup((char*)pszGssStrmDrvr));
+	if(pszGssStrmDrvrAuthMode != NULL)
+		CHKmalloc(pData->pszGssStrmDrvrAuthMode =
+			     (uchar*)strdup((char*)pszGssStrmDrvrAuthMode));
+	if(pGssPermPeers != NULL) {
+		pData->pGssPermPeers = pGssPermPeers;
+		pGssPermPeers = NULL;
 	}
 
 CODE_STD_FINALIZERparseSelectorAct
@@ -757,21 +698,14 @@ ENDparseSelectorAct
 static void
 freeConfigVars(void)
 {
-	if(pszTplName != NULL) {
-		free(pszTplName);
-		pszTplName = NULL;
-	}
-	if(pszGssStrmDrvr != NULL) {
-		free(pszGssStrmDrvr);
-		pszGssStrmDrvr = NULL;
-	}
-	if(pszGssStrmDrvrAuthMode != NULL) {
-		free(pszGssStrmDrvrAuthMode);
-		pszGssStrmDrvrAuthMode = NULL;
-	}
-	if(pGssPermPeers != NULL) {
-		free(pGssPermPeers);
-	}
+	free(pszTplName);
+	pszTplName = NULL;
+	free(pszGssStrmDrvr);
+	pszGssStrmDrvr = NULL;
+	free(pszGssStrmDrvrAuthMode);
+	pszGssStrmDrvrAuthMode = NULL;
+	free(pGssPermPeers);
+	pGssPermPeers = NULL;
 }
 
 
@@ -806,7 +740,6 @@ static rsRetVal resetConfigVariables(uchar __attribute__((unused)) *pp, void __a
 	/* we now must reset all non-string values */
 	iGssStrmDrvrMode = 0;
 	bGssResendLastOnRecon = 0;
-//	iUDPRebindInterval = 0;
 	iGSSRebindInterval = 0;
 
 	gss_mode = GSSMODE_ENC;
@@ -855,7 +788,6 @@ CODEmodInit_QueryRegCFSLineHdlr
 	CHKiRet(objUse(tcpclt, LM_TCPCLT_FILENAME));
 
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendtcprebindinterval", 0, eCmdHdlrInt, NULL, &iGSSRebindInterval, STD_LOADABLE_MODULE_ID));
-//	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendudprebindinterval", 0, eCmdHdlrInt, NULL, &iUDPRebindInterval, STD_LOADABLE_MODULE_ID));
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendstreamdriver", 0, eCmdHdlrGetWord, NULL, &pszGssStrmDrvr, STD_LOADABLE_MODULE_ID));
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendstreamdrivermode", 0, eCmdHdlrInt, NULL, &iGssStrmDrvrMode, STD_LOADABLE_MODULE_ID));
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendstreamdriverauthmode", 0, eCmdHdlrGetWord, NULL, &pszGssStrmDrvrAuthMode, STD_LOADABLE_MODULE_ID));
