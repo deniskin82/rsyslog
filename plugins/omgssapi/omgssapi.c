@@ -1,27 +1,24 @@
-/* omgssapi.c
- * This is the implementation of the build-in forwarding output module.
+/* omgssapi.c rewrite
+ * based on omfwd.c rsyslog 5.8.6
  *
- * NOTE: read comments in module-template.h to understand how this file
- *       works!
- *
- * Copyright 2007, 2008 Rainer Gerhards and Adiscon GmbH.
+ * Copyright 2007-2012 Adiscon GmbH.
  *
  * This file is part of rsyslog.
  *
- * Rsyslog is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Rsyslog is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Rsyslog.  If not, see <http://www.gnu.org/licenses/>.
- *
- * A copy of the GPL can be found in the file "COPYING" in this distribution.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *       -or-
+ *       see COPYING.ASL20 in the source distribution
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * 
  */
 #include "config.h"
 #ifdef USE_GSSAPI
@@ -43,55 +40,79 @@
 #endif
 #include <pthread.h>
 #include <gssapi/gssapi.h>
-#include "dirty.h"
 #include "conf.h"
 #include "syslogd-types.h"
 #include "srUtils.h"
 #include "net.h"
+#include "netstrms.h"
+#include "netstrm.h"
 #include "template.h"
 #include "msg.h"
+#include "tcpclt.h"
 #include "cfsysline.h"
 #include "module-template.h"
 #include "gss-misc.h"
-#include "tcpclt.h"
 #include "glbl.h"
 #include "errmsg.h"
 
 MODULE_TYPE_OUTPUT
 MODULE_TYPE_NOKEEP
 
-
 /* internal structures
  */
 DEF_OMOD_STATIC_DATA
 DEFobjCurrIf(errmsg)
 DEFobjCurrIf(glbl)
+DEFobjCurrIf(net)
+DEFobjCurrIf(netstrms)
+DEFobjCurrIf(netstrm)
 DEFobjCurrIf(gssutil)
 DEFobjCurrIf(tcpclt)
 
 typedef struct _instanceData {
+	netstrms_t *pNS; /* netstream subsystem */
+	netstrm_t *pNetstrm; /* our output netstream */
+	uchar *pszGssStrmDrvr;
+	uchar *pszGssStrmDrvrAuthMode;
+	permittedPeers_t *pGssPermPeers;
+	int iGssStrmDrvrMode;
 	char	*f_hname;
-	short	sock;			/* file descriptor */
-	enum { /* TODO: we shoud revisit these definitions */
-		eDestFORW,
-		eDestFORW_SUSP,
-		eDestFORW_UNKN
-	} eDestState;
+	int *pSockArray;	/* sockets to use for UDP */
+	int bIsConnected;  /* are we connected to remote host? 0 - no, 1 - yes, UDP means addr resolved */
 	struct addrinfo *f_addr;
-	int compressionLevel; /* 0 - no compression, else level for zlib */
+	int compressionLevel;	/* 0 - no compression, else level for zlib */
 	char *port;
-	tcpclt_t *pTCPClt;		/* our tcpclt object */
+	int protocol;
+//	int iUDPRebindInterval;	/* rebind interval */
+	int iGSSRebindInterval;	/* rebind interval */
+	int nXmit;		/* number of transmissions since last (re-)bind */
+#	define	FORW_UDP 0
+#	define	FORW_TCP 1
+	/* following fields for TCP-based delivery */
+	tcpclt_t *pTCPClt;	/* our tcpclt object */
+
 	gss_ctx_id_t gss_context;
 	OM_uint32 gss_flags;
 } instanceData;
 
 /* config data */
-static uchar	*pszTplName = NULL; /* name of the default template to use */
+static uchar *pszTplName = NULL; /* name of the default template to use */
+static uchar *pszGssStrmDrvr = NULL; /* name of the stream driver to use */
+static int iGssStrmDrvrMode = 0; /* mode for stream driver, driver-dependent (0 mostly means plain tcp) */
+static int bGssResendLastOnRecon = 0; /* should the last message be re-sent on a successful reconnect? */
+static uchar *pszGssStrmDrvrAuthMode = NULL; /* authentication mode to use */
+//static int iUDPRebindInterval = 0;	/* support for automatic re-binding (load balancers!). 0 - no rebind */
+static int iGSSRebindInterval = 0;	/* support for automatic re-binding (load balancers!). 0 - no rebind */
+
+static permittedPeers_t *pGssPermPeers = NULL;
+
 static char *gss_base_service_name = NULL;
 static enum gss_mode_t {
 	GSSMODE_MIC,
 	GSSMODE_ENC
 } gss_mode = GSSMODE_ENC;
+
+static rsRetVal doTryResume(instanceData *pData);
 
 /* get the syslog forward port from selector_t. The passed in
  * struct must be one that is setup for forwarding.
@@ -99,13 +120,45 @@ static enum gss_mode_t {
  * We may change the implementation to try to lookup the port
  * if it is unspecified. So far, we use the IANA default auf 514.
  */
-static char *getFwdSyslogPt(instanceData *pData)
+static char *getFwdPt(instanceData *pData)
 {
 	assert(pData != NULL);
 	if(pData->port == NULL)
 		return("514");
 	else
 		return(pData->port);
+}
+
+
+/* destruct the TCP helper objects
+ * This, for example, is needed after something went wrong.
+ * This function is void because it "can not" fail.
+ * rgerhards, 2008-06-04
+ */
+static inline void
+DestructTCPInstanceData(instanceData *pData)
+{
+	OM_uint32 maj_stat, min_stat;
+
+	assert(pData != NULL);
+
+	if (pData->gss_context != GSS_C_NO_CONTEXT) {
+		maj_stat = gss_delete_sec_context(&min_stat, &pData->gss_context, GSS_C_NO_BUFFER);
+		if (maj_stat != GSS_S_COMPLETE)
+			gssutil.display_status("deleting context", maj_stat, min_stat);
+	}
+	/* this is meant to be done when module is unloaded,
+	   but since this module is static...
+	*/
+	if (gss_base_service_name != NULL) {
+		free(gss_base_service_name);
+		gss_base_service_name = NULL;
+	}
+
+	if(pData->pNetstrm != NULL)
+		netstrm.Destruct(&pData->pNetstrm);
+	if(pData->pNS != NULL)
+		netstrms.Destruct(&pData->pNS);
 }
 
 BEGINcreateInstance
@@ -121,182 +174,65 @@ ENDisCompatibleWithFeature
 
 
 BEGINfreeInstance
-OM_uint32 maj_stat, min_stat;
 CODESTARTfreeInstance
-	switch (pData->eDestState) {
-		case eDestFORW:
-		case eDestFORW_SUSP:
-			freeaddrinfo(pData->f_addr);
-			/* fall through */
-		case eDestFORW_UNKN:
-			if(pData->port != NULL)
-				free(pData->port);
-			break;
-	}
-
-	if (pData->gss_context != GSS_C_NO_CONTEXT) {
-		maj_stat = gss_delete_sec_context(&min_stat, &pData->gss_context, GSS_C_NO_BUFFER);
-		if (maj_stat != GSS_S_COMPLETE)
-			gssutil.display_status("deleting context", maj_stat, min_stat);
-	}
-	/* this is meant to be done when module is unloaded,
-	   but since this module is static...
-	*/
-	if (gss_base_service_name != NULL) {
-		free(gss_base_service_name);
-		gss_base_service_name = NULL;
-	}
-
 	/* final cleanup */
-	tcpclt.Destruct(&pData->pTCPClt);
-	if(pData->sock >= 0)
-		close(pData->sock);
 
-	if(pData->f_hname != NULL)
-		free(pData->f_hname);
+	DestructTCPInstanceData(pData);
+
+	if(pData->protocol == FORW_TCP) {
+		tcpclt.Destruct(&pData->pTCPClt);
+	}
+
+	free(pData->port);
+	free(pData->f_hname);
+	free(pData->pszGssStrmDrvr);
+	free(pData->pszGssStrmDrvrAuthMode);
+	net.DestructPermittedPeers(&pData->pGssPermPeers);
 ENDfreeInstance
 
 
 BEGINdbgPrintInstInfo
 CODESTARTdbgPrintInstInfo
-	printf("%s", pData->f_hname);
+	dbgprintf("%s", pData->f_hname);
 ENDdbgPrintInstInfo
 
 
-/* This function is called immediately before a send retry is attempted.
- * It shall clean up whatever makes sense.
- * rgerhards, 2007-12-28
+
+/* set the permitted peers -- rgerhards, 2008-05-19
  */
-static rsRetVal TCPSendGSSPrepRetry(void __attribute__((unused)) *pData)
-{
-	/* in case of TCP/GSS, there is nothing to do */
-	return RS_RET_OK;
-}
-
-
-static rsRetVal TCPSendGSSInit(void *pvData)
+static rsRetVal
+setPermittedPeer(void __attribute__((unused)) *pVal, uchar *pszID)
 {
 	DEFiRet;
-	int s = -1;
-	char *base;
-	OM_uint32 maj_stat, min_stat, init_sec_min_stat, *sess_flags, ret_flags;
-	gss_buffer_desc out_tok, in_tok;
-	gss_buffer_t tok_ptr;
-	gss_name_t target_name;
-	gss_ctx_id_t *context;
-	instanceData *pData = (instanceData *) pvData;
-
-	assert(pData != NULL);
-
-	/* if the socket is already initialized, we are done */
-	if(pData->sock > 0)
-		ABORT_FINALIZE(RS_RET_OK);
-
-	base = (gss_base_service_name == NULL) ? "host" : gss_base_service_name;
-	out_tok.length = strlen(pData->f_hname) + strlen(base) + 2;
-	CHKmalloc(out_tok.value = MALLOC(out_tok.length));
-	strcpy(out_tok.value, base);
-	strcat(out_tok.value, "@");
-	strcat(out_tok.value, pData->f_hname);
-	dbgprintf("GSS-API service name: %s\n", (char*) out_tok.value);
-
-	tok_ptr = GSS_C_NO_BUFFER;
-	context = &pData->gss_context;
-	*context = GSS_C_NO_CONTEXT;
-
-	maj_stat = gss_import_name(&min_stat, &out_tok, GSS_C_NT_HOSTBASED_SERVICE, &target_name);
-	free(out_tok.value);
-	out_tok.value = NULL;
-	out_tok.length = 0;
-
-	if (maj_stat != GSS_S_COMPLETE) {
-		gssutil.display_status("parsing name", maj_stat, min_stat);
-		goto fail;
-	}
-
-	sess_flags = &pData->gss_flags;
-	*sess_flags = GSS_C_MUTUAL_FLAG;
-	if (gss_mode == GSSMODE_MIC) {
-		*sess_flags |= GSS_C_INTEG_FLAG;
-	}
-	if (gss_mode == GSSMODE_ENC) {
-		*sess_flags |= GSS_C_CONF_FLAG;
-	}
-	dbgprintf("GSS-API requested context flags:\n");
-	gssutil.display_ctx_flags(*sess_flags);
-
-	do {
-		maj_stat = gss_init_sec_context(&init_sec_min_stat, GSS_C_NO_CREDENTIAL, context,
-						target_name, GSS_C_NO_OID, *sess_flags, 0, NULL,
-						tok_ptr, NULL, &out_tok, &ret_flags, NULL);
-		if (tok_ptr != GSS_C_NO_BUFFER)
-			free(in_tok.value);
-
-		if (maj_stat != GSS_S_COMPLETE
-		    && maj_stat != GSS_S_CONTINUE_NEEDED) {
-			gssutil.display_status("initializing context", maj_stat, init_sec_min_stat);
-			goto fail;
-		}
-
-		if (s == -1)
-			if ((s = pData->sock = tcpclt.CreateSocket(pData->f_addr)) == -1)
-				goto fail;
-
-		if (out_tok.length != 0) {
-			dbgprintf("GSS-API Sending init_sec_context token (length: %ld)\n", (long) out_tok.length);
-			if (gssutil.send_token(s, &out_tok) < 0) {
-				goto fail;
-			}
-		}
-		gss_release_buffer(&min_stat, &out_tok);
-
-		if (maj_stat == GSS_S_CONTINUE_NEEDED) {
-			dbgprintf("GSS-API Continue needed...\n");
-			if (gssutil.recv_token(s, &in_tok) <= 0) {
-				goto fail;
-			}
-			tok_ptr = &in_tok;
-		}
-	} while (maj_stat == GSS_S_CONTINUE_NEEDED);
-
-	dbgprintf("GSS-API Provided context flags:\n");
-	*sess_flags = ret_flags;
-	gssutil.display_ctx_flags(*sess_flags);
-
-	dbgprintf("GSS-API Context initialized\n");
-	gss_release_name(&min_stat, &target_name);
-
+	CHKiRet(net.AddPermittedPeer(&pGssPermPeers, pszID));
+	free(pszID); /* no longer needed, but we must free it as of interface def */
 finalize_it:
 	RETiRet;
-
- fail:
-	errmsg.LogError(0, RS_RET_GSS_SENDINIT_ERROR, "GSS-API Context initialization failed\n");
-	gss_release_name(&min_stat, &target_name);
-	gss_release_buffer(&min_stat, &out_tok);
-	if (*context != GSS_C_NO_CONTEXT) {
-		gss_delete_sec_context(&min_stat, context, GSS_C_NO_BUFFER);
-		*context = GSS_C_NO_CONTEXT;
-	}
-	if (s != -1)
-		close(s);
-	pData->sock = -1;
-	ABORT_FINALIZE(RS_RET_GSS_SENDINIT_ERROR);
 }
 
 
-static rsRetVal TCPSendGSSSend(void *pvData, char *msg, size_t len)
+
+/* CODE FOR SENDING TCP MESSAGES */
+
+
+/* Send a frame via plain TCP protocol
+ * rgerhards, 2007-12-28
+ */
+static rsRetVal TCPSendGSSFrame(void *pvData, char *msg, size_t len)
 {
+	DEFiRet;
+	ssize_t lenSend;
+
 	int s;
 	gss_ctx_id_t *context;
 	OM_uint32 maj_stat, min_stat;
 	gss_buffer_desc in_buf, out_buf;
+
 	instanceData *pData = (instanceData *) pvData;
 
-	assert(pData != NULL);
-	assert(msg != NULL);
-	assert(len > 0);
+	lenSend = len;
 
-	s = pData->sock;
+	netstrm.GetSock(pData->pNetstrm, &s);
 	context = &pData->gss_context;
 	in_buf.value = msg;
 	in_buf.length = len;
@@ -304,24 +240,189 @@ static rsRetVal TCPSendGSSSend(void *pvData, char *msg, size_t len)
 			    &in_buf, NULL, &out_buf);
 	if (maj_stat != GSS_S_COMPLETE) {
 		gssutil.display_status("wrapping message", maj_stat, min_stat);
-		goto fail;
+		iRet = RS_RET_ERR;
+		goto finalize_it;
 	}
 	
 	if (gssutil.send_token(s, &out_buf) < 0) {
-		goto fail;
+		iRet = RS_RET_ERR;
+		goto finalize_it;
 	}
 	gss_release_buffer(&min_stat, &out_buf);
 
-	return RS_RET_OK;
+//	netstrm.CheckConnection(pData->pNetstrm); /* hack for plain tcp syslog - see ptcp driver for details */
+//	CHKiRet(netstrm.Send(pData->pNetstrm, (uchar*)msg, &lenSend));
 
- fail:
-	close(s);
-	pData->sock = -1;
-	gss_delete_sec_context(&min_stat, context, GSS_C_NO_BUFFER);
-	*context = GSS_C_NO_CONTEXT;
-	gss_release_buffer(&min_stat, &out_buf);
-	dbgprintf("message not (GSS/tcp)send");
-	return RS_RET_GSS_SEND_ERROR;
+	dbgprintf("GSS sent %ld bytes, requested %ld\n", (long) lenSend, (long) len);
+
+finalize_it:
+	if(iRet != RS_RET_OK) {
+
+		errmsg.LogError(0, RS_RET_GSS_SENDINIT_ERROR, "GSS-API Context initialization failed\n");
+		gss_release_buffer(&min_stat, &out_buf);
+		if (*context != GSS_C_NO_CONTEXT) {
+			gss_delete_sec_context(&min_stat, context, GSS_C_NO_BUFFER);
+			*context = GSS_C_NO_CONTEXT;
+		}
+		DestructTCPInstanceData(pData);
+	}
+	RETiRet;
+}
+
+
+/* This function is called immediately before a send retry is attempted.
+ * It shall clean up whatever makes sense.
+ * rgerhards, 2007-12-28
+ */
+static rsRetVal TCPSendGSSPrepRetry(void *pvData)
+{
+	DEFiRet;
+	instanceData *pData = (instanceData *) pvData;
+
+	assert(pData != NULL);
+	DestructTCPInstanceData(pData);
+	RETiRet;
+}
+
+
+/* initializes everything so that TCPSend can work.
+ * rgerhards, 2007-12-28
+ */
+static rsRetVal TCPSendGSSInit(void *pvData)
+{
+	DEFiRet;
+
+	char *base;
+	OM_uint32 maj_stat, min_stat, init_sec_min_stat, *sess_flags, ret_flags;
+	gss_buffer_desc out_tok, in_tok;
+	gss_buffer_t tok_ptr;
+	gss_name_t target_name;
+	gss_ctx_id_t *context = NULL;
+	int s;
+
+	instanceData *pData = (instanceData *) pvData;
+
+	assert(pData != NULL);
+	if(pData->pNetstrm == NULL) {
+
+
+		base = (gss_base_service_name == NULL) ? "host" : gss_base_service_name;
+		out_tok.length = strlen(pData->f_hname) + strlen(base) + 2;
+		CHKmalloc(out_tok.value = MALLOC(out_tok.length));
+		strcpy(out_tok.value, base);
+		strcat(out_tok.value, "@");
+		strcat(out_tok.value, pData->f_hname);
+		dbgprintf("GSS-API service name: %s\n", (char*) out_tok.value);
+		tok_ptr = GSS_C_NO_BUFFER;
+		context = &pData->gss_context;
+		*context = GSS_C_NO_CONTEXT;
+		maj_stat = gss_import_name(&min_stat, &out_tok, GSS_C_NT_HOSTBASED_SERVICE, &target_name);
+		free(out_tok.value);
+		out_tok.value = NULL;
+		out_tok.length = 0;
+		if (maj_stat != GSS_S_COMPLETE) {
+			gssutil.display_status("parsing name", maj_stat, min_stat);
+			iRet = RS_RET_ERR;
+			goto finalize_it;
+		}
+		sess_flags = &pData->gss_flags;
+		*sess_flags = GSS_C_MUTUAL_FLAG;
+		if (gss_mode == GSSMODE_MIC) {
+			*sess_flags |= GSS_C_INTEG_FLAG;
+		}
+		if (gss_mode == GSSMODE_ENC) {
+			*sess_flags |= GSS_C_CONF_FLAG;
+		}
+		dbgprintf("GSS-API requested context flags:\n");
+		gssutil.display_ctx_flags(*sess_flags);
+
+
+		do {
+			maj_stat = gss_init_sec_context(&init_sec_min_stat, GSS_C_NO_CREDENTIAL, context,
+							target_name, GSS_C_NO_OID, *sess_flags, 0, NULL,
+							tok_ptr, NULL, &out_tok, &ret_flags, NULL);
+			if (tok_ptr != GSS_C_NO_BUFFER)
+				free(in_tok.value);
+
+			if (maj_stat != GSS_S_COMPLETE
+			    && maj_stat != GSS_S_CONTINUE_NEEDED) {
+				gssutil.display_status("initializing context", maj_stat, init_sec_min_stat);
+				iRet = RS_RET_ERR;
+				goto finalize_it;
+			}
+
+			if (pData->pNetstrm == NULL) {
+				//if ((s = pData->sock = tcpclt.CreateSocket(pData->f_addr)) == -1)
+				//	goto fail;
+	
+				CHKiRet(netstrms.Construct(&pData->pNS));
+				/* the stream driver must be set before the object is finalized! */
+				CHKiRet(netstrms.SetDrvrName(pData->pNS, pszGssStrmDrvr));
+				CHKiRet(netstrms.ConstructFinalize(pData->pNS));
+	
+				/* now create the actual stream and connect to the server */
+				CHKiRet(netstrms.CreateStrm(pData->pNS, &pData->pNetstrm));
+				CHKiRet(netstrm.ConstructFinalize(pData->pNetstrm));
+				CHKiRet(netstrm.SetDrvrMode(pData->pNetstrm, pData->iGssStrmDrvrMode));
+				/* now set optional params, but only if they were actually configured */
+				if(pData->pszGssStrmDrvrAuthMode != NULL) {
+					CHKiRet(netstrm.SetDrvrAuthMode(pData->pNetstrm, pData->pszGssStrmDrvrAuthMode));
+				}
+				if(pData->pGssPermPeers != NULL) {
+					CHKiRet(netstrm.SetDrvrPermPeers(pData->pNetstrm, pData->pGssPermPeers));
+				}
+				/* params set, now connect */
+				CHKiRet(netstrm.Connect(pData->pNetstrm, glbl.GetDefPFFamily(),
+					(uchar*)getFwdPt(pData), (uchar*)pData->f_hname));
+			}
+
+			if (out_tok.length != 0) {
+				dbgprintf("GSS-API Sending init_sec_context token (length: %ld)\n", (long) out_tok.length);
+	
+				netstrm.GetSock(pData->pNetstrm, &s);
+				//CHKiRet(netstrm.Send(pData->pNetstrm, (uchar*)&out_tok->value, &out_tok->length));
+				if (gssutil.send_token(s, &out_tok) < 0) {
+					iRet = RS_RET_ERR;
+					goto finalize_it;
+				}
+			}
+			gss_release_buffer(&min_stat, &out_tok);
+
+			if (maj_stat == GSS_S_CONTINUE_NEEDED) {
+				dbgprintf("GSS-API Continue needed...\n");
+				//CHKiRet(netstrm.Rcv(pSess->pNetstrm, (uchar *)&in_tok->value, piLenRcvd));
+				if (gssutil.recv_token(s, &in_tok) <= 0) {
+					iRet = RS_RET_ERR;
+					goto finalize_it;
+				}
+
+				tok_ptr = &in_tok;
+			}
+		} while (maj_stat == GSS_S_CONTINUE_NEEDED);
+
+		dbgprintf("GSS-API Provided context flags:\n");
+		*sess_flags = ret_flags;
+		gssutil.display_ctx_flags(*sess_flags);
+	
+		dbgprintf("GSS-API Context initialized\n");
+		gss_release_name(&min_stat, &target_name);
+	}
+
+
+finalize_it:
+	if(iRet != RS_RET_OK) {
+
+		errmsg.LogError(0, RS_RET_GSS_SENDINIT_ERROR, "GSS-API Context initialization failed\n");
+		gss_release_name(&min_stat, &target_name);
+		gss_release_buffer(&min_stat, &out_tok);
+		if (*context != GSS_C_NO_CONTEXT) {
+			gss_delete_sec_context(&min_stat, context, GSS_C_NO_BUFFER);
+			*context = GSS_C_NO_CONTEXT;
+		}
+		DestructTCPInstanceData(pData);
+	
+	}
+	RETiRet;
 }
 
 
@@ -330,40 +431,25 @@ static rsRetVal TCPSendGSSSend(void *pvData, char *msg, size_t len)
  */
 static rsRetVal doTryResume(instanceData *pData)
 {
+//	int iErr;
+//	struct addrinfo *res;
+//	struct addrinfo hints;
 	DEFiRet;
-	struct addrinfo *res;
-	struct addrinfo hints;
-	unsigned e;
 
-	switch (pData->eDestState) {
-	case eDestFORW_SUSP:
-		iRet = RS_RET_OK; /* the actual check happens during doAction() only */
-		pData->eDestState = eDestFORW;
-		break;
-		
-	case eDestFORW_UNKN:
-		/* The remote address is not yet known and needs to be obtained */
-		dbgprintf(" %s\n", pData->f_hname);
-		memset(&hints, 0, sizeof(hints));
-		/* port must be numeric, because config file syntax requests this */
-		/* TODO: this code is a duplicate from cfline() - we should later create
-		 * a common function.
-		 */
-		hints.ai_flags = AI_NUMERICSERV;
-		hints.ai_family = glbl.GetDefPFFamily();
-		hints.ai_socktype = SOCK_STREAM;
-		if((e = getaddrinfo(pData->f_hname,
-				    getFwdSyslogPt(pData), &hints, &res)) == 0) {
-			dbgprintf("%s found, resuming.\n", pData->f_hname);
-			pData->f_addr = res;
-			pData->eDestState = eDestFORW;
-		} else {
-			iRet = RS_RET_SUSPENDED;
+	if(pData->bIsConnected)
+		FINALIZE;
+
+	/* The remote address is not yet known and needs to be obtained */
+	dbgprintf(" %s\n", pData->f_hname);
+	CHKiRet(TCPSendGSSInit((void*)pData));
+
+finalize_it:
+	if(iRet != RS_RET_OK) {
+		if(pData->f_addr != NULL) {
+			freeaddrinfo(pData->f_addr);
+			pData->f_addr = NULL;
 		}
-		break;
-	case eDestFORW:
-		/* NOOP */
-		break;
+		iRet = RS_RET_SUSPENDED;
 	}
 
 	RETiRet;
@@ -380,77 +466,72 @@ BEGINdoAction
 	register unsigned l;
 	int iMaxLine;
 CODESTARTdoAction
-	switch (pData->eDestState) {
-	case eDestFORW_SUSP:
-		dbgprintf("internal error in omgssapi.c, eDestFORW_SUSP in doAction()!\n");
-		iRet = RS_RET_SUSPENDED;
-		break;
-		
-	case eDestFORW_UNKN:
-		dbgprintf("doAction eDestFORW_UNKN\n");
-		iRet = doTryResume(pData);
-		break;
+	CHKiRet(doTryResume(pData));
 
-	case eDestFORW:
-		dbgprintf(" %s:%s/%s\n", pData->f_hname, getFwdSyslogPt(pData), "tcp-gssapi");
-		iMaxLine = glbl.GetMaxLine();
-		psz = (char*) ppString[0];
-		l = strlen((char*) psz);
-		if((int) l > iMaxLine)
-			l = iMaxLine;
+	iMaxLine = glbl.GetMaxLine();
 
-#		ifdef	USE_NETZIP
-		/* Check if we should compress and, if so, do it. We also
-		 * check if the message is large enough to justify compression.
-		 * The smaller the message, the less likely is a gain in compression.
-		 * To save CPU cycles, we do not try to compress very small messages.
-		 * What "very small" means needs to be configured. Currently, it is
-		 * hard-coded but this may be changed to a config parameter.
-		 * rgerhards, 2006-11-30
-		 */
-		if(pData->compressionLevel && (l > CONF_MIN_SIZE_FOR_COMPRESS)) {
-			Bytef *out;
-			uLongf destLen = sizeof(out) / sizeof(Bytef);
-			uLong srcLen = l;
-			int ret;
-			/* TODO: optimize malloc sequence? -- rgerhards, 2008-09-02 */
-			CHKmalloc(out = (Bytef*) MALLOC(iMaxLine + iMaxLine/100 + 12));
-			out[0] = 'z';
-			out[1] = '\0';
-			ret = compress2((Bytef*) out+1, &destLen, (Bytef*) psz,
-					srcLen, pData->compressionLevel);
-			dbgprintf("Compressing message, length was %d now %d, return state  %d.\n",
-				l, (int) destLen, ret);
-			if(ret != Z_OK) {
-				/* if we fail, we complain, but only in debug mode
-				 * Otherwise, we are silent. In any case, we ignore the
-				 * failed compression and just sent the uncompressed
-				 * data, which is still valid. So this is probably the
-				 * best course of action.
-				 * rgerhards, 2006-11-30
-				 */
-				dbgprintf("Compression failed, sending uncompressed message\n");
-				free(out);
-			} else if(destLen+1 < l) {
-				/* only use compression if there is a gain in using it! */
-				dbgprintf("there is gain in compression, so we do it\n");
-				psz = (char*) out;
-				l = destLen + 1; /* take care for the "z" at message start! */
-			} else {
-				free(out);
-			}
-			++destLen;
+	dbgprintf(" %s:%s/%s\n", pData->f_hname, getFwdPt(pData),
+		 pData->protocol == FORW_UDP ? "udp" : "tcp");
+
+	psz = (char*) ppString[0];
+	l = strlen((char*) psz);
+	if((int) l > iMaxLine)
+		l = iMaxLine;
+
+#	ifdef	USE_NETZIP
+	/* Check if we should compress and, if so, do it. We also
+	 * check if the message is large enough to justify compression.
+	 * The smaller the message, the less likely is a gain in compression.
+	 * To save CPU cycles, we do not try to compress very small messages.
+	 * What "very small" means needs to be configured. Currently, it is
+	 * hard-coded but this may be changed to a config parameter.
+	 * rgerhards, 2006-11-30
+	 */
+	if(pData->compressionLevel && (l > CONF_MIN_SIZE_FOR_COMPRESS)) {
+		Bytef *out;
+		uLongf destLen = iMaxLine + iMaxLine/100 +12; /* recommended value from zlib doc */
+		uLong srcLen = l;
+		int ret;
+		/* TODO: optimize malloc sequence? -- rgerhards, 2008-09-02 */
+		CHKmalloc(out = (Bytef*) MALLOC(destLen));
+		out[0] = 'z';
+		out[1] = '\0';
+		ret = compress2((Bytef*) out+1, &destLen, (Bytef*) psz,
+				srcLen, pData->compressionLevel);
+		dbgprintf("Compressing message, length was %d now %d, return state  %d.\n",
+			l, (int) destLen, ret);
+		if(ret != Z_OK) {
+			/* if we fail, we complain, but only in debug mode
+			 * Otherwise, we are silent. In any case, we ignore the
+			 * failed compression and just sent the uncompressed
+			 * data, which is still valid. So this is probably the
+			 * best course of action.
+			 * rgerhards, 2006-11-30
+			 */
+			dbgprintf("Compression failed, sending uncompressed message\n");
+			free(out);
+		} else if(destLen+1 < l) {
+			/* only use compression if there is a gain in using it! */
+			dbgprintf("there is gain in compression, so we do it\n");
+			psz = (char*) out;
+			l = destLen + 1; /* take care for the "z" at message start! */
+		} else {
+			free(out);
 		}
-#		endif
-
-		CHKiRet_Hdlr(tcpclt.Send(pData->pTCPClt, pData, psz, l)) {
-			/* error! */
-			dbgprintf("error forwarding via tcp, suspending\n");
-			pData->eDestState = eDestFORW_SUSP;
-			ABORT_FINALIZE(RS_RET_SUSPENDED);
-		}
-		break;
+		++destLen;
 	}
+#	endif
+
+	/* forward via TCP */
+	rsRetVal ret;
+	ret = tcpclt.Send(pData->pTCPClt, pData, psz, l);
+	if(ret != RS_RET_OK) {
+		/* error! */
+		dbgprintf("error forwarding via GSS, suspending\n");
+		DestructTCPInstanceData(pData);
+		iRet = RS_RET_SUSPENDED;
+	}
+
 finalize_it:
 #	ifdef USE_NETZIP
 	if((psz != NULL) && (psz != (char*) ppString[0]))  {
@@ -461,33 +542,68 @@ finalize_it:
 ENDdoAction
 
 
+/* This function loads TCP support, if not already loaded. It will be called
+ * during config processing. To server ressources, TCP support will only
+ * be loaded if it actually is used. -- rgerhard, 2008-04-17
+ */
+static rsRetVal
+loadTCPSupport(void)
+{
+	DEFiRet;
+	CHKiRet(objUse(netstrms, LM_NETSTRMS_FILENAME));
+	CHKiRet(objUse(netstrm, LM_NETSTRMS_FILENAME));
+	CHKiRet(objUse(tcpclt, LM_TCPCLT_FILENAME));
+
+finalize_it:
+	RETiRet;
+}
+
+
 BEGINparseSelectorAct
 	uchar *q;
 	int i;
-        int error;
-	int bErr;
-        struct addrinfo hints, *res;
+	rsRetVal localRet;
+        struct addrinfo;
 	TCPFRAMINGMODE tcp_framing = TCP_FRAMING_OCTET_STUFFING;
 CODESTARTparseSelectorAct
 CODE_STD_STRING_REQUESTparseSelectorAct(1)
-	/* first check if this config line is actually for us
-	 * The first test [*p == '>'] can be skipped if a module shall only
-	 * support the newer slection syntax [:modname:]. This is in fact
-	 * recommended for new modules. Please note that over time this part
-	 * will be handled by rsyslogd itself, but for the time being it is
-	 * a good compromise to do it at the module level.
-	 * rgerhards, 2007-10-15
-	 */
+//	if(*p != '@')
+//		ABORT_FINALIZE(RS_RET_CONFLINE_UNPROCESSED);
+
+
+
+//	++p; /* eat '@' */
+//	if(*p == '@') { /* indicator for TCP! */
+//		localRet = loadTCPSupport();
+//		if(localRet != RS_RET_OK) {
+//			errmsg.LogError(0, localRet, "could not activate network stream modules for GSS "
+//					"(internal error %d) - are modules missing?", localRet);
+//			ABORT_FINALIZE(localRet);
+//		}
+//		pData->protocol = FORW_TCP;
+//		++p; /* eat this '@', too */
+//	} else {
+//		pData->protocol = FORW_UDP;
+//	}
 
 	if(!strncmp((char*) p, ":omgssapi:", sizeof(":omgssapi:") - 1)) {
 		p += sizeof(":omgssapi:") - 1; /* eat indicator sequence (-1 because of '\0'!) */
+
+		CHKiRet(createInstance(&pData));
+	
+		localRet = loadTCPSupport();
+		if(localRet != RS_RET_OK) {
+			errmsg.LogError(0, localRet, "could not activate network stream modules for GSS "
+					"(internal error %d) - are modules missing?", localRet);
+			ABORT_FINALIZE(localRet);
+		}
+		pData->protocol = FORW_TCP;
 	} else {
 		ABORT_FINALIZE(RS_RET_CONFLINE_UNPROCESSED);
 	}
 
-	/* ok, if we reach this point, we have something for us */
-	if((iRet = createInstance(&pData)) != RS_RET_OK)
-		goto finalize_it;
+
+
 
 	/* we are now after the protocol indicator. Now check if we should
 	 * use compression. We begin to use a new option format for this:
@@ -502,6 +618,9 @@ CODE_STD_STRING_REQUESTparseSelectorAct(1)
 	 * applies to TCP-based syslog only and is ignored when specified with UDP).
 	 * That is not yet implemented.
 	 * rgerhards, 2006-12-07
+	 * In order to support IPv6 addresses, we must introduce an extension to
+	 * the hostname. If it is in square brackets, whatever is in them is treated as
+	 * the hostname - without any exceptions ;) -- rgerhards, 2008-08-05
 	 */
 	if(*p == '(') {
 		/* at this position, it *must* be an option indicator */
@@ -509,7 +628,7 @@ CODE_STD_STRING_REQUESTparseSelectorAct(1)
 			++p; /* eat '(' or ',' (depending on when called) */
 			/* check options */
 			if(*p == 'z') { /* compression */
-#					ifdef USE_NETZIP
+#				ifdef USE_NETZIP
 				++p; /* eat */
 				if(isdigit((int) *p)) {
 					int iLevel;
@@ -521,10 +640,10 @@ CODE_STD_STRING_REQUESTparseSelectorAct(1)
 						 "forwardig action - NOT turning on compression.",
 						 *p);
 				}
-#					else
+#				else
 				errmsg.LogError(0, NO_ERRCODE, "Compression requested, but rsyslogd is not compiled "
 					 "with compression support - request ignored.");
-#					endif /* #ifdef USE_NETZIP */
+#				endif /* #ifdef USE_NETZIP */
 			} else if(*p == 'o') { /* octet-couting based TCP framing? */
 				++p; /* eat */
 				/* no further options settable */
@@ -546,13 +665,24 @@ CODE_STD_STRING_REQUESTparseSelectorAct(1)
 			/* we probably have end of string - leave it for the rest
 			 * of the code to handle it (but warn the user)
 			 */
-			errmsg.LogError(0, NO_ERRCODE, "Option block not terminated in gssapi forward action.");
+			errmsg.LogError(0, NO_ERRCODE, "Option block not terminated in GSS forwarding action.");
 	}
+
 	/* extract the host first (we do a trick - we replace the ';' or ':' with a '\0')
 	 * now skip to port and then template name. rgerhards 2005-07-06
 	 */
-	for(q = p ; *p && *p != ';' && *p != ':' && *p != '#' ; ++p)
-		/* JUST SKIP */;
+	if(*p == '[') { /* everything is hostname upto ']' */
+		++p; /* skip '[' */
+		for(q = p ; *p && *p != ']' ; ++p)
+			/* JUST SKIP */;
+		if(*p == ']') {
+			*p = '\0'; /* trick to obtain hostname (later)! */
+			++p; /* eat it */
+		}
+	} else { /* traditional view of hostname */
+		for(q = p ; *p && *p != ';' && *p != ':' && *p != '#' ; ++p)
+			/* JUST SKIP */;
+	}
 
 	pData->port = NULL;
 	if(*p == ':') { /* process port */
@@ -566,29 +696,16 @@ CODE_STD_STRING_REQUESTparseSelectorAct(1)
 		if(pData->port == NULL) {
 			errmsg.LogError(0, NO_ERRCODE, "Could not get memory to store syslog forwarding port, "
 				 "using default port, results may not be what you intend\n");
-			/* we leave f_forw.port set to NULL, this is then handled by
-			 * getFwdSyslogPt().
-			 */
+			/* we leave f_forw.port set to NULL, this is then handled by getFwdPt(). */
 		} else {
 			memcpy(pData->port, tmp, i);
 			*(pData->port + i) = '\0';
 		}
 	}
 	
-		
 	/* now skip to template */
-	bErr = 0;
-	while(*p && *p != ';') {
-		if(*p && *p != ';' && !isspace((int) *p)) {
-			if(bErr == 0) { /* only 1 error msg! */
-				bErr = 1;
-				errno = 0;
-				errmsg.LogError(0, NO_ERRCODE, "invalid selector line (port), probably not doing "
-					 "what was intended");
-			}
-		}
-		++p;
-	}
+	while(*p && *p != ';'  && *p != '#' && !isspace((int) *p))
+		++p; /*JUST SKIP*/
 
 	/* TODO: make this if go away! */
 	if(*p == ';' || *p == '#' || isspace(*p)) {
@@ -600,49 +717,76 @@ CODE_STD_STRING_REQUESTparseSelectorAct(1)
 		CHKmalloc(pData->f_hname = strdup((char*) q));
 	}
 
+	/* copy over config data as needed */
+//	pData->iUDPRebindInterval = iUDPRebindInterval;
+	pData->iGSSRebindInterval = iGSSRebindInterval;
+
 	/* process template */
 	CHKiRet(cflineParseTemplateName(&p, *ppOMSR, 0, OMSR_NO_RQD_TPL_OPTS,
-			(pszTplName == NULL) ? (uchar*)"RSYSLOG_TraditionalForwardFormat" : pszTplName));
+		(pszTplName == NULL) ? (uchar*)"RSYSLOG_TraditionalForwardFormat" : pszTplName));
 
-	/* first set the pData->eDestState */
-	memset(&hints, 0, sizeof(hints));
-	/* port must be numeric, because config file syntax requests this */
-	hints.ai_flags = AI_NUMERICSERV;
-	hints.ai_family = glbl.GetDefPFFamily();
-	hints.ai_socktype = SOCK_STREAM;
-	if( (error = getaddrinfo(pData->f_hname, getFwdSyslogPt(pData), &hints, &res)) != 0) {
-		pData->eDestState = eDestFORW_UNKN;
-	} else {
-		pData->eDestState = eDestFORW;
-		pData->f_addr = res;
+	if(pData->protocol == FORW_TCP) {
+		/* create our tcpclt */
+		CHKiRet(tcpclt.Construct(&pData->pTCPClt));
+		CHKiRet(tcpclt.SetResendLastOnRecon(pData->pTCPClt, bGssResendLastOnRecon));
+		/* and set callbacks */
+		CHKiRet(tcpclt.SetSendInit(pData->pTCPClt, TCPSendGSSInit));
+		CHKiRet(tcpclt.SetSendFrame(pData->pTCPClt, TCPSendGSSFrame));
+		CHKiRet(tcpclt.SetSendPrepRetry(pData->pTCPClt, TCPSendGSSPrepRetry));
+		CHKiRet(tcpclt.SetFraming(pData->pTCPClt, tcp_framing));
+		CHKiRet(tcpclt.SetRebindInterval(pData->pTCPClt, pData->iGSSRebindInterval));
+		pData->iGssStrmDrvrMode = iGssStrmDrvrMode;
+		if(pszGssStrmDrvr != NULL)
+			CHKmalloc(pData->pszGssStrmDrvr = (uchar*)strdup((char*)pszGssStrmDrvr));
+		if(pszGssStrmDrvrAuthMode != NULL)
+			CHKmalloc(pData->pszGssStrmDrvrAuthMode =
+				     (uchar*)strdup((char*)pszGssStrmDrvrAuthMode));
+		if(pGssPermPeers != NULL) {
+			pData->pGssPermPeers = pGssPermPeers;
+			pGssPermPeers = NULL;
+		}
 	}
 
-	/* now create our tcpclt */
-	CHKiRet(tcpclt.Construct(&pData->pTCPClt));
-	/* and set callbacks */
-	CHKiRet(tcpclt.SetSendInit(pData->pTCPClt, TCPSendGSSInit));
-	CHKiRet(tcpclt.SetSendFrame(pData->pTCPClt, TCPSendGSSSend));
-	CHKiRet(tcpclt.SetSendPrepRetry(pData->pTCPClt, TCPSendGSSPrepRetry));
-	CHKiRet(tcpclt.SetFraming(pData->pTCPClt, tcp_framing));
-
-	/* TODO: do we need to call freeInstance if we failed - this is a general question for
-	 * all output modules. I'll address it lates as the interface evolves. rgerhards, 2007-07-25
-	 */
 CODE_STD_FINALIZERparseSelectorAct
 ENDparseSelectorAct
 
 
-BEGINmodExit
-CODESTARTmodExit
-	objRelease(glbl, CORE_COMPONENT);
-	objRelease(errmsg, CORE_COMPONENT);
-	objRelease(gssutil, LM_GSSUTIL_FILENAME);
-	objRelease(tcpclt, LM_TCPCLT_FILENAME);
-
+/* a common function to free our configuration variables - used both on exit
+ * and on $ResetConfig processing. -- rgerhards, 2008-05-16
+ */
+static void
+freeConfigVars(void)
+{
 	if(pszTplName != NULL) {
 		free(pszTplName);
 		pszTplName = NULL;
 	}
+	if(pszGssStrmDrvr != NULL) {
+		free(pszGssStrmDrvr);
+		pszGssStrmDrvr = NULL;
+	}
+	if(pszGssStrmDrvrAuthMode != NULL) {
+		free(pszGssStrmDrvrAuthMode);
+		pszGssStrmDrvrAuthMode = NULL;
+	}
+	if(pGssPermPeers != NULL) {
+		free(pGssPermPeers);
+	}
+}
+
+
+BEGINmodExit
+CODESTARTmodExit
+	/* release what we no longer need */
+	objRelease(errmsg, CORE_COMPONENT);
+	objRelease(glbl, CORE_COMPONENT);
+	objRelease(net, LM_NET_FILENAME);
+	objRelease(netstrm, LM_NETSTRMS_FILENAME);
+	objRelease(netstrms, LM_NETSTRMS_FILENAME);
+	objRelease(tcpclt, LM_TCPCLT_FILENAME);
+	objRelease(gssutil, LM_GSSUTIL_FILENAME);
+
+	freeConfigVars();
 ENDmodExit
 
 
@@ -651,6 +795,32 @@ CODESTARTqueryEtryPt
 CODEqueryEtryPt_STD_OMOD_QUERIES
 ENDqueryEtryPt
 
+
+/* Reset config variables for this module to default values.
+ * rgerhards, 2008-03-28
+ */
+static rsRetVal resetConfigVariables(uchar __attribute__((unused)) *pp, void __attribute__((unused)) *pVal)
+{
+	freeConfigVars();
+
+	/* we now must reset all non-string values */
+	iGssStrmDrvrMode = 0;
+	bGssResendLastOnRecon = 0;
+//	iUDPRebindInterval = 0;
+	iGSSRebindInterval = 0;
+
+	gss_mode = GSSMODE_ENC;
+	if (gss_base_service_name != NULL) {
+		free(gss_base_service_name);
+		gss_base_service_name = NULL;
+	}
+	if(pszTplName != NULL) {
+		free(pszTplName);
+		pszTplName = NULL;
+	}
+
+	return RS_RET_OK;
+}
 
 /* set a new GSSMODE based on config directive */
 static rsRetVal setGSSMode(void __attribute__((unused)) *pVal, uchar *mode)
@@ -672,30 +842,25 @@ static rsRetVal setGSSMode(void __attribute__((unused)) *pVal, uchar *mode)
 	RETiRet;
 }
 
-
-static rsRetVal resetConfigVariables(uchar __attribute__((unused)) *pp, void __attribute__((unused)) *pVal)
-{
-	gss_mode = GSSMODE_ENC;
-	if (gss_base_service_name != NULL) {
-		free(gss_base_service_name);
-		gss_base_service_name = NULL;
-	}
-	if(pszTplName != NULL) {
-		free(pszTplName);
-		pszTplName = NULL;
-	}
-	return RS_RET_OK;
-}
-
-
 BEGINmodInit()
 CODESTARTmodInit
 	*ipIFVersProvided = CURR_MOD_IF_VERSION; /* we only support the current interface specification */
 CODEmodInit_QueryRegCFSLineHdlr
 	CHKiRet(objUse(errmsg, CORE_COMPONENT));
 	CHKiRet(objUse(glbl, CORE_COMPONENT));
+	CHKiRet(objUse(net, LM_NET_FILENAME));
+	CHKiRet(objUse(netstrm, LM_NETSTRMS_FILENAME));
+	CHKiRet(objUse(netstrms, LM_NETSTRMS_FILENAME));
 	CHKiRet(objUse(gssutil, LM_GSSUTIL_FILENAME));
 	CHKiRet(objUse(tcpclt, LM_TCPCLT_FILENAME));
+
+	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendtcprebindinterval", 0, eCmdHdlrInt, NULL, &iGSSRebindInterval, STD_LOADABLE_MODULE_ID));
+//	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendudprebindinterval", 0, eCmdHdlrInt, NULL, &iUDPRebindInterval, STD_LOADABLE_MODULE_ID));
+	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendstreamdriver", 0, eCmdHdlrGetWord, NULL, &pszGssStrmDrvr, STD_LOADABLE_MODULE_ID));
+	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendstreamdrivermode", 0, eCmdHdlrInt, NULL, &iGssStrmDrvrMode, STD_LOADABLE_MODULE_ID));
+	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendstreamdriverauthmode", 0, eCmdHdlrGetWord, NULL, &pszGssStrmDrvrAuthMode, STD_LOADABLE_MODULE_ID));
+	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendstreamdriverpermittedpeer", 0, eCmdHdlrGetWord, setPermittedPeer, NULL, STD_LOADABLE_MODULE_ID));
+	CHKiRet(omsdRegCFSLineHdlr((uchar *)"actiongsssendresendlastmsgonreconnect", 0, eCmdHdlrBinary, NULL, &bGssResendLastOnRecon, STD_LOADABLE_MODULE_ID));
 
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"gssforwardservicename", 0, eCmdHdlrGetWord, NULL, &gss_base_service_name, STD_LOADABLE_MODULE_ID));
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"gssmode", 0, eCmdHdlrGetWord, setGSSMode, &gss_mode, STD_LOADABLE_MODULE_ID));
@@ -704,5 +869,5 @@ CODEmodInit_QueryRegCFSLineHdlr
 ENDmodInit
 
 #endif /* #ifdef USE_GSSAPI */
-/* vi:set ai:
+/* vim:set ai:
  */
