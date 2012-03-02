@@ -651,6 +651,8 @@ Connect(nsd_t *pNsd, int family, uchar *port, uchar *host)
 	nsd_ptcp_t *pThis = (nsd_ptcp_t*) pNsd;
 	struct addrinfo *res = NULL;
 	struct addrinfo hints;
+	int e;
+	char errStr[512];
 
 	DEFiRet;
 	ISOBJ_TYPE_assert(pThis, nsd_ptcp);
@@ -661,16 +663,20 @@ Connect(nsd_t *pNsd, int family, uchar *port, uchar *host)
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = family;
 	hints.ai_socktype = SOCK_STREAM;
-	if(getaddrinfo((char*)host, (char*)port, &hints, &res) != 0) {
-		dbgprintf("error %d in getaddrinfo\n", errno);
+	if((e = getaddrinfo((char*)host, (char*)port, &hints, &res)) != 0) {
+		dbgprintf("error %d in getaddrinfo: %s\n", e, gai_strerror(e));
 		ABORT_FINALIZE(RS_RET_IO_ERROR);
 	}
 	
 	if((pThis->sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1) {
+		rs_strerror_r(errno, errStr, sizeof(errStr));
+		dbgprintf("error creating socket: %s\n", errStr);
 		ABORT_FINALIZE(RS_RET_IO_ERROR);
 	}
 
 	if(connect(pThis->sock, res->ai_addr, res->ai_addrlen) != 0) {
+		rs_strerror_r(errno, errStr, sizeof(errStr));
+		dbgprintf("error connecting socket: %s\n", errStr);
 		ABORT_FINALIZE(RS_RET_IO_ERROR);
 	}
 
