@@ -88,9 +88,15 @@ typedef enum {				/* when extending, do NOT change existing modes! */
 	STREAMMODE_WRITE_APPEND = 4
 } strmMode_t;
 
+typedef struct strm_s strm_t;
+
+typedef rsRetVal (*strmOnFileOpened_t)(strm_t *pThis, const uchar *pszName, int iFlags, mode_t tMode, void *pData);
+typedef rsRetVal (*strmOnFileClosed_t)(strm_t *pThis, const uchar *pszName, void *pData);
+
+
 #define STREAM_ASYNC_NUMBUFS 2 /* must be a power of 2 -- TODO: make configurable */
 /* The strm_t data structure */
-typedef struct strm_s {
+struct strm_s {
 	BEGINobjInstance;	/* Data to implement generic object - MUST be the first data element! */
 	strmType_t sType;
 	/* descriptive properties */
@@ -144,7 +150,12 @@ typedef struct strm_s {
 	off_t	iSizeLimit;	/* file size limit, 0 = no limit */
 	uchar	*pszSizeLimitCmd;	/* command to carry out when size limit is reached */
 	sbool	bIsTTY;		/* is this a tty file? */
-} strm_t;
+	uchar *pszOpenFName;		/* name of currently open file */
+	strmOnFileOpened_t pOnFileOpened;	/* called right before a file is opened */
+	void *pOnFileOpenedData;	/* data for pData argument in callback */
+	strmOnFileClosed_t pOnFileClosed;	/* called right before a file is opened */
+	void *pOnFileClosedData;	/* data for pData argument in callback */
+};
 
 
 /* interfaces */
@@ -184,8 +195,11 @@ BEGINinterface(strm) /* name must also be changed in ENDinterface macro! */
 	INTERFACEpropSetMeth(strm, pszSizeLimitCmd, uchar*);
 	/* v6 added */
 	rsRetVal (*ReadLine)(strm_t *pThis, cstr_t **ppCStr, int mode);
+	/* v7 added */
+	rsRetVal (*SetOnFileOpened)(strm_t *pThis, strmOnFileOpened_t pCallback, void *pData);
+	rsRetVal (*SetOnFileClosed)(strm_t *pThis, strmOnFileClosed_t pCallback, void *pData);
 ENDinterface(strm)
-#define strmCURR_IF_VERSION 6 /* increment whenever you change the interface structure! */
+#define strmCURR_IF_VERSION 7 /* increment whenever you change the interface structure! */
 
 
 /* prototypes */
