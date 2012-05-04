@@ -1994,6 +1994,7 @@ void MsgSetInputName(msg_t *pThis, prop_t *inputName)
 {
 	assert(pThis != NULL);
 
+dbgprintf("msg.c: MsgSetInputName, prop.addRef ptr is %p\n", prop.AddRef);
 	prop.AddRef(inputName);
 	if(pThis->pInputName != NULL)
 		prop.Destruct(&pThis->pInputName);
@@ -3267,6 +3268,7 @@ BEGINObjClassInit(msg, 1, OBJ_IS_CORE_MODULE)
 	CHKiRet(objUse(datetime, CORE_COMPONENT));
 	CHKiRet(objUse(glbl, CORE_COMPONENT));
 	CHKiRet(objUse(prop, CORE_COMPONENT));
+dbgprintf("msg.c: prop obj interface queried, addRef ptr is %p\n", prop.AddRef);
 
 	/* set our own handlers */
 	OBJSetMethodHandler(objMethod_SERIALIZE, MsgSerialize);
