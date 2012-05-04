@@ -561,6 +561,7 @@ SubmitMsg(uchar *pRcv, int lenRcv, lstn_t *pLstn, struct ucred *cred)
 	MsgSetRawMsg(pMsg, (char*)pRcv, lenRcv);
 	parser.SanitizeMsg(pMsg);
 	lenMsg = pMsg->iLenRawMsg - offs;
+dbgprintf("imuxsock: socket '%s', pInputName %p\n", pLstn->sockName, pInputName);
 	MsgSetInputName(pMsg, pInputName);
 	MsgSetFlowControlType(pMsg, pLstn->flowCtl);
 
@@ -825,6 +826,7 @@ CODESTARTwillRun
 	CHKiRet(prop.Construct(&pInputName));
 	CHKiRet(prop.SetString(pInputName, UCHAR_CONSTANT("imuxsock"), sizeof("imuxsock") - 1));
 	CHKiRet(prop.ConstructFinalize(pInputName));
+dbgprintf("imuxsock: created pInputName: %p\n", pInputName);
 
 finalize_it:
 ENDwillRun
