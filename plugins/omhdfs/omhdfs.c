@@ -61,6 +61,32 @@ DEFobjCurrIf(errmsg)
 /* global data */
 static struct hashtable *files;		/* holds all file objects that we know */
 
+/* tables for interfacing with the v6 config system */
+/* module-global parameters */
+static struct cnfparamdescr modpdescr[] = {
+	{ "template", eCmdHdlrGetWord, 0 },
+};
+static struct cnfparamblk modpblk =
+	{ CNFPARAMBLK_VERSION,
+	  sizeof(modpdescr)/sizeof(struct cnfparamdescr),
+	  modpdescr
+	};
+/* action (instance) parameters */
+static struct cnfparamdescr actpdescr[] = {
+	{ "file", eCmdHdlrString, 0 },     /* either "file" or ... */
+	{ "dynafile", eCmdHdlrString, 0 }, /* "dynafile" MUST be present */
+	{ "target", eCmdHdlrString, 0 },
+	{ "port", eCmdHdlrInt, 0 },
+	{ "template", eCmdHdlrGetWord, 0 },
+};
+
+static struct cnfparamblk actpblk =
+	{ CNFPARAMBLK_VERSION,
+	  sizeof(actpdescr)/sizeof(struct cnfparamdescr),
+	  actpdescr
+	};
+
+
 typedef struct configSettings_s {
 	uchar *fileName;	
 	uchar *hdfsHost;	
@@ -69,10 +95,6 @@ typedef struct configSettings_s {
 } configSettings_t;
 static configSettings_t cs;
 
-
-BEGINinitConfVars		/* (re)set config variables to default values */
-CODESTARTinitConfVars 
-ENDinitConfVars
 
 typedef struct {
 	uchar	*name;
@@ -86,13 +108,68 @@ typedef struct {
 
 
 typedef struct _instanceData {
+	uchar 	*tplName;	/* name of assigned template */
+	uchar *fname;
+	uchar *target;		/* server for this file */
+	int port;		/* port to connect to on target */
+	char bDynamicName;	/* 0 - static name, 1 - dynamic name (with properties) */
 	file_t *pFile;
 	uchar ioBuf[64*1024];
 	unsigned offsBuf;
+	/* TODO: implement the following settings! rgerhards, 2012-07-12 */
+	int	iIOBufSize;		/* size of associated io buffer */
 } instanceData;
+uchar	*pszFileDfltTplName; /* name of the default template to use */
+
+struct modConfData_s {
+	rsconf_t *pConf;	/* our overall config object */
+	uchar 	*tplName;	/* default template */
+};
+
+static modConfData_t *loadModConf = NULL;/* modConf ptr to use for the current load process */
+static modConfData_t *runModConf = NULL;/* modConf ptr to use for the current exec process */
 
 /* forward definitions (down here, need data types) */
 static inline rsRetVal fileClose(file_t *pFile);
+
+/* this function gets the default template. It coordinates action between
+ * old-style and new-style configuration parts.
+ */
+static inline uchar*
+getDfltTpl(void)
+{
+	if(loadModConf != NULL && loadModConf->tplName != NULL)
+		return loadModConf->tplName;
+	else if(pszFileDfltTplName == NULL)
+		return (uchar*)"RSYSLOG_FileFormat";
+	else
+		return pszFileDfltTplName;
+}
+
+
+/* set the default template to be used
+ * This is a module-global parameter, and as such needs special handling. It needs to
+ * be coordinated with values set via the v2 config system (rsyslog v6+). What we do
+ * is we do not permit this directive after the v2 config system has been used to set
+ * the parameter.
+ */
+rsRetVal
+setLegacyDfltTpl(void __attribute__((unused)) *pVal, uchar* newVal)
+{
+	DEFiRet;
+
+	if(loadModConf != NULL && loadModConf->tplName != NULL) {
+		free(newVal);
+		errmsg.LogError(0, RS_RET_ERR, "omhdfs default template already set via module "
+			"global parameter - can no longer be changed");
+		ABORT_FINALIZE(RS_RET_ERR);
+	}
+	free(pszFileDfltTplName);
+	pszFileDfltTplName = newVal;
+finalize_it:
+	RETiRet;
+}
+
 
 BEGINisCompatibleWithFeature
 CODESTARTisCompatibleWithFeature
@@ -430,6 +507,138 @@ dbgprintf("omhdfs: endTransaction\n");
 ENDendTransaction
 
 
+static inline void
+setInstParamDefaults(instanceData *pData)
+{
+	pData->fname = NULL;
+	pData->tplName = NULL;
+	pData->iIOBufSize = 64*1024;
+}
+
+BEGINbeginCnfLoad
+CODESTARTbeginCnfLoad
+	loadModConf = pModConf;
+	pModConf->pConf = pConf;
+	pModConf->tplName = NULL;
+ENDbeginCnfLoad
+
+BEGINsetModCnf
+	struct cnfparamvals *pvals = NULL;
+	int i;
+CODESTARTsetModCnf
+	pvals = nvlstGetParams(lst, &modpblk, NULL);
+	if(pvals == NULL) {
+		errmsg.LogError(0, RS_RET_MISSING_CNFPARAMS, "error processing module "
+				"config parameters [module(...)]");
+		ABORT_FINALIZE(RS_RET_MISSING_CNFPARAMS);
+	}
+
+	if(Debug) {
+		dbgprintf("module (global) param blk for omhdfs:\n");
+		cnfparamsPrint(&modpblk, pvals);
+	}
+
+	for(i = 0 ; i < modpblk.nParams ; ++i) {
+		if(!pvals[i].bUsed)
+			continue;
+		if(!strcmp(modpblk.descr[i].name, "template")) {
+			loadModConf->tplName = (uchar*)es_str2cstr(pvals[i].val.d.estr, NULL);
+			if(pszFileDfltTplName != NULL) {
+				errmsg.LogError(0, RS_RET_DUP_PARAM, "omhdfs: warning: default template "
+						"was already set via legacy directive - may lead to inconsistent "
+						"results.");
+			}
+		} else {
+			dbgprintf("omhdfs: program error, non-handled "
+			  "param '%s' in beginCnfLoad\n", modpblk.descr[i].name);
+		}
+	}
+finalize_it:
+	if(pvals != NULL)
+		cnfparamvalsDestruct(pvals, &modpblk);
+ENDsetModCnf
+
+BEGINendCnfLoad
+CODESTARTendCnfLoad
+	loadModConf = NULL; /* done loading */
+	/* free legacy config vars */
+	free(pszFileDfltTplName);
+	pszFileDfltTplName = NULL;
+ENDendCnfLoad
+
+BEGINcheckCnf
+CODESTARTcheckCnf
+ENDcheckCnf
+
+BEGINactivateCnf
+CODESTARTactivateCnf
+	runModConf = pModConf;
+ENDactivateCnf
+
+BEGINfreeCnf
+CODESTARTfreeCnf
+	free(pModConf->tplName);
+ENDfreeCnf
+
+
+BEGINnewActInst
+	struct cnfparamvals *pvals;
+	int i;
+CODESTARTnewActInst
+	DBGPRINTF("newActInst (omhdfs)\n");
+	pvals = nvlstGetParams(lst, &actpblk, NULL);
+	if(pvals == NULL) {
+		errmsg.LogError(0, RS_RET_MISSING_CNFPARAMS, "omhdfs: either the \"file\" or "
+				"\"dynfile\" parameter must be given");
+		ABORT_FINALIZE(RS_RET_MISSING_CNFPARAMS);
+	}
+	if(Debug) {
+		dbgprintf("action param blk in omhdfs:\n");
+		cnfparamsPrint(&actpblk, pvals);
+	}
+	CHKiRet(createInstance(&pData));
+	setInstParamDefaults(pData);
+	for(i = 0 ; i < actpblk.nParams ; ++i) {
+		if(!pvals[i].bUsed)
+			continue;
+		if(!strcmp(actpblk.descr[i].name, "file")) {
+			pData->fname = (uchar*)es_str2cstr(pvals[i].val.d.estr, NULL);
+			CODE_STD_STRING_REQUESTnewActInst(1)
+			pData->bDynamicName = 0;
+		} else if(!strcmp(actpblk.descr[i].name, "dynafile")) {
+			pData->fname = (uchar*)es_str2cstr(pvals[i].val.d.estr, NULL);
+			CODE_STD_STRING_REQUESTnewActInst(2)
+			pData->bDynamicName = 1;
+		} else if(!strcmp(actpblk.descr[i].name, "target")) {
+			pData->target = (uchar*)es_str2cstr(pvals[i].val.d.estr, NULL);
+		} else if(!strcmp(actpblk.descr[i].name, "port")) {
+			pData->port = (int) pvals[i].val.d.n;
+		} else if(!strcmp(actpblk.descr[i].name, "template")) {
+			pData->tplName = (uchar*)es_str2cstr(pvals[i].val.d.estr, NULL);
+		} else {
+			dbgprintf("omhdfs: program error, non-handled "
+			  "param '%s'\n", actpblk.descr[i].name);
+		}
+	}
+	if(pData->fname == NULL) {
+		errmsg.LogError(0, RS_RET_MISSING_CNFPARAMS, "omhdfs: either the \"file\" or "
+				"\"dynfile\" parameter must be given");
+		ABORT_FINALIZE(RS_RET_MISSING_CNFPARAMS);
+	}
+
+	CHKiRet(OMSRsetEntry(*ppOMSR, 0, ustrdup(pData->tplName == NULL ?
+                                         getDfltTpl() : pData->tplName), OMSR_NO_RQD_TPL_OPTS));
+
+	if(pData->bDynamicName) {
+		/* "filename" is actually a template name, we need this as string 1. So let's add it */
+		CHKiRet(OMSRsetEntry(*ppOMSR, 1, ustrdup(pData->fname), OMSR_NO_RQD_TPL_OPTS));
+	}
+
+CODE_STD_FINALIZERnewActInst
+	cnfparamvalsDestruct(pvals, &actpblk);
+ENDnewActInst
+
+
 BEGINparseSelectorAct
 	file_t *pFile;
 	int r;
@@ -525,6 +734,9 @@ ENDmodExit
 BEGINqueryEtryPt
 CODESTARTqueryEtryPt
 CODEqueryEtryPt_STD_OMOD_QUERIES
+CODEqueryEtryPt_STD_CONF2_QUERIES
+CODEqueryEtryPt_STD_CONF2_setModCnf_QUERIES
+CODEqueryEtryPt_STD_CONF2_OMOD_QUERIES
 CODEqueryEtryPt_TXIF_OMOD_QUERIES /* we support the transactional interface! */
 CODEqueryEtryPt_doHUP
 ENDqueryEtryPt
@@ -542,7 +754,7 @@ CODEmodInit_QueryRegCFSLineHdlr
 	CHKiRet(regCfSysLineHdlr((uchar *)"omhdfsfilename", 0, eCmdHdlrGetWord, NULL, &cs.fileName, NULL));
 	CHKiRet(regCfSysLineHdlr((uchar *)"omhdfshost", 0, eCmdHdlrGetWord, NULL, &cs.hdfsHost, NULL));
 	CHKiRet(regCfSysLineHdlr((uchar *)"omhdfsport", 0, eCmdHdlrInt, NULL, &cs.hdfsPort, NULL));
-	CHKiRet(regCfSysLineHdlr((uchar *)"omhdfsdefaulttemplate", 0, eCmdHdlrGetWord, NULL, &cs.dfltTplName, NULL));
+	CHKiRet(regCfSysLineHdlr((uchar *)"omhdfsdefaulttemplate", 0, eCmdHdlrGetWord, setLegacyDfltTpl, NULL, NULL));
 	CHKiRet(omsdRegCFSLineHdlr((uchar *)"resetconfigvariables", 1, eCmdHdlrCustomHandler, resetConfigVariables, NULL, STD_LOADABLE_MODULE_ID));
 	DBGPRINTF("omhdfs: module compiled with rsyslog version %s.\n", VERSION);
 CODEmodInit_QueryRegCFSLineHdlr
