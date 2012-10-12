@@ -502,6 +502,7 @@ fixPID(uchar *bufTAG, int *lenTag, struct ucred *cred)
 	char bufPID[16];
 	int lenPID;
 
+dbgprintf("DDDD: in fixPID, tag: '%s'\n", bufTAG);
 	if(cred == NULL)
 		return;
 	
@@ -645,6 +646,9 @@ SubmitMsg(uchar *pRcv, int lenRcv, lstn_t *pLstn, struct ucred *cred, struct tim
 	struct syslogTime dummyTS;
 	DEFiRet;
 
+char tmptmp[1024];
+sprintf(tmptmp, "DDDD: imuxsock.submitMsg(), msg: '%%%d.%ds'\n", lenRcv, lenRcv);
+dbgprintf(tmptmp, pRcv);
 	/* TODO: handle format errors?? */
 	/* we need to parse the pri first, because we need the severity for
 	 * rate-limiting as well.
@@ -771,6 +775,7 @@ SubmitMsg(uchar *pRcv, int lenRcv, lstn_t *pLstn, struct ucred *cred, struct tim
 	MsgSetTAG(pMsg, bufParseTAG, i);
 
 	MsgSetMSGoffs(pMsg, pMsg->iLenRawMsg - lenMsg);
+dbgprintf("DDDD: imuxsock.submitMsg(): set MSG offs: %d\n", pMsg->iLenRawMsg - lenMsg);
 
 	if(pLstn->bParseHost) {
 		pMsg->msgFlags  = pLstn->flags | PARSE_HOSTNAME;
