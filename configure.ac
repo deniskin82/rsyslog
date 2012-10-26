@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([rsyslog],[6.4.2],[rsyslog@lists.adiscon.com])
+AC_INIT([rsyslog],[6.4.2.c4.1],[rsyslog@lists.adiscon.com])
 AM_INIT_AUTOMAKE
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -752,7 +752,7 @@ AC_ARG_ENABLE(rsyslogrt,
         [enable_rsyslogrt=yes]
 )
 if test "x$enable_rsyslogrt" = "xyes"; then
-  RSRT_CFLAGS1="-I\$(top_srcdir)/runtime -I\$(top_srcdir) -I\$(top_srcdir)/grammar"
+  RSRT_CFLAGS1="-I\$(top_srcdir)/runtime -I\$(top_srcdir)/runtime/cJSON -I\$(top_srcdir) -I\$(top_srcdir)/grammar"
   RSRT_LIBS1="\$(top_builddir)/runtime/librsyslog.la"
   #??CNF_LIBS="\$(top_builddir)/grammar/libgrammar.la"
 fi

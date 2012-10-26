@@ -1,3 +1,7 @@
+
+---------------------------------------------------------------------------
+Version 6.4.2-c4.1  [c4] 2012-10-26
+- omelasticsearch: support for writing data errors to local file added
 ---------------------------------------------------------------------------
 Version 6.4.2  [V6-STABLE] 2012-09-20
 - bugfix: potential abort, if action queue could not be properly started
