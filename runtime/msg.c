@@ -2401,7 +2401,7 @@ jsonAddVal(uchar *pSrc, unsigned buflen, es_str_t **dst)
 	for(i = 0 ; i < buflen ; ++i) {
 		c = pSrc[i];
 		if(   (c >= 0x23 && c <= 0x5b)
-		   || (c >= 0x5d /* && c <= 0x10FFFF*/)
+		   || (c >= 0x5d  && c != 0x92)
 		   || c == 0x20 || c == 0x21) {
 			/* no need to escape */
 			if(*dst != NULL)
@@ -2422,6 +2422,9 @@ jsonAddVal(uchar *pSrc, unsigned buflen, es_str_t **dst)
 			switch(c) {
 			case '\0':
 				es_addBuf(dst, "\\u0000", 6);
+				break;
+			case 0x92:
+				es_addBuf(dst, "\\u2019", 6);
 				break;
 			case '\"':
 				es_addBuf(dst, "\\\"", 2);
